@@ -1,5 +1,5 @@
 
-    import streamlit as st
+import streamlit as st
 import feedparser
 import yfinance as yf
 import streamlit.components.v1 as components
