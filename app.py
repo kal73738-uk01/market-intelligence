@@ -2,10 +2,11 @@ import streamlit as st
 import feedparser
 import yfinance as yf
 import streamlit.components.v1 as components
-from datetime import datetime, timedelta
+import plotly.graph_objects as go
+from datetime import datetime
 import pytz
 
-st.set_page_config(page_title="MCX Terminal Pro", page_icon="⛽", layout="wide")
+st.set_page_config(page_title="MCX Terminal Ultra-Fast", page_icon="⛽", layout="wide")
 
 # --- TOP NAVIGATION ---
 st.markdown("## ⛽ MCX Pro Terminal & Intelligence Engine")
@@ -23,18 +24,17 @@ nav_page = st.radio(
 
 st.markdown("---")
 
-# --- TIME & DXY CORRELATION ENGINE ---
 ist = pytz.timezone("Asia/Kolkata")
 now_ist = datetime.now(ist)
 
+# --- MARKET DATA & FAST PLOT ENGINE ---
 @st.cache_data(ttl=60)
 def get_market_overview(timeframe_code):
     try:
-        # USD-INR & DXY Fetch
         tickers = yf.Tickers("INR=X DX-Y.NYB CL=F NG=F")
         usd_inr = tickers.tickers["INR=X"].history(period="1d")['Close'].iloc[-1]
         
-        # DXY data
+        # DXY
         dxy_df = tickers.tickers["DX-Y.NYB"].history(period="2d")
         dxy_price = dxy_df['Close'].iloc[-1]
         dxy_prev = dxy_df['Close'].iloc[-2]
@@ -43,6 +43,7 @@ def get_market_overview(timeframe_code):
         def process_asset(t, conversion_factor):
             df = t.history(period="5d", interval=timeframe_code)
             if len(df) >= 20:
+                # MCX Converted columns
                 df['C_INR'] = df['Close'] * conversion_factor * (usd_inr / 83.5)
                 df['O_INR'] = df['Open'] * conversion_factor * (usd_inr / 83.5)
                 df['H_INR'] = df['High'] * conversion_factor * (usd_inr / 83.5)
@@ -77,7 +78,8 @@ def get_market_overview(timeframe_code):
                     "pivot": pivot,
                     "r1": r1, "r2": r2,
                     "s1": s1, "s2": s2,
-                    "patterns": patterns
+                    "patterns": patterns,
+                    "df": df.tail(40) # Last 40 candles for lightning fast charting
                 }
             return None
 
@@ -105,7 +107,7 @@ def scan_patterns(df):
             "name": "🔨 Bullish Hammer (Reversal Setup)", "type": "BUY",
             "time": "Latest Candle", "entry": entry, "sl": sl,
             "t1": entry + (risk * 1.5), "t2": entry + (risk * 2.0),
-            "desc": "Niche se strong buying aayi hai. Reversal tezi ke sanket."
+            "desc": "Niche se heavy buyer demand aayi hai. Bounce signal."
         })
 
     if upper_wick > (1.8 * body) and lower_wick < (0.6 * body) and body > 0:
@@ -116,7 +118,7 @@ def scan_patterns(df):
             "name": "🌠 Shooting Star (Bikwali Reversal)", "type": "SELL",
             "time": "Latest Candle", "entry": entry, "sl": sl,
             "t1": entry - (risk * 1.5), "t2": entry - (risk * 2.0),
-            "desc": "Upar se heavy selling rejection mila hai. Mandi aane ke chances."
+            "desc": "Upar se heavy selling rejection. Mandi aane ke chances."
         })
 
     if p_close < p_open and c_close > c_open and c_close >= p_open:
@@ -143,7 +145,7 @@ def scan_patterns(df):
 
     return detected
 
-# --- TIMEFRAME SELECTION ---
+# --- TIMEFRAME SELECTOR ---
 tf_choice = st.selectbox(
     "⏱️ Timeframe:",
     ["15 Minute (Intraday Best)", "5 Minute (Fast Scalping)", "1 Hour (Safe Swing)"]
@@ -156,10 +158,45 @@ tf_map = {
 
 crude_data, gas_data, dxy_val, dxy_chg = get_market_overview(tf_map[tf_choice])
 
+# Function to render lightning-fast native Candlestick Chart
+def render_fast_candlestick(df, name):
+    fig = go.Figure()
+    
+    # Candlestick
+    fig.add_trace(go.Candlestick(
+        x=df.index,
+        open=df['O_INR'],
+        high=df['H_INR'],
+        low=df['L_INR'],
+        close=df['C_INR'],
+        name="Candles",
+        increasing_line_color='#26a69a', 
+        decreasing_line_color='#ef5350'
+    ))
+    
+    # 20 SMA line
+    fig.add_trace(go.Scatter(
+        x=df.index, 
+        y=df['SMA20'], 
+        mode='lines', 
+        name='20 SMA',
+        line=dict(color='#ff9800', width=1.5)
+    ))
+
+    fig.update_layout(
+        title=f"{name} Live Candlestick (Pure MCX ₹)",
+        yaxis_title="Price (₹)",
+        xaxis_rangeslider_visible=False,
+        height=380,
+        margin=dict(l=10, r=10, t=35, b=10),
+        template="plotly_dark"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
 # ==================== PAGE 1: LIVE TERMINAL ====================
 if nav_page == "🛢️ Live Terminal & Levels":
     # DXY BANNER
-    st.markdown("#### 💵 US Dollar Index (DXY) Impact Meter")
+    st.markdown("#### 💵 US Dollar Index (DXY) Live Correlation")
     d1, d2, d3 = st.columns([1, 1, 2])
     d1.metric("DXY Index Rate", f"{dxy_val:.2f}", f"{dxy_chg:.2f}%")
     if dxy_chg > 0.15:
@@ -170,19 +207,19 @@ if nav_page == "🛢️ Live Terminal & Levels":
         d3.info("Dollar kamzor ho raha hai. Commodities me buying rally ko support milega.")
     else:
         d2.info("⚪ DXY NEUTRAL")
-        d3.caption("Dollar stable hai. Commodities apne chart levels par chalengi.")
+        d3.caption("Dollar stable hai. Commodities apne chart levels follow karengi.")
 
     st.markdown("---")
     
     t1, t2 = st.tabs(["🛢️ Crude Oil (MCX)", "🔥 Natural Gas (MCX)"])
 
-    def display_asset_tab(data, name, unit, symbol_tv):
+    def display_asset_tab(data, name, unit):
         if not data:
-            st.error("Market data load ho raha hai... Refresh karein.")
+            st.error("Market data load ho raha hai... Page refresh karein.")
             return
 
         r1, r2, r3 = st.columns(3)
-        r1.metric(f"Current Bhav ({unit})", f"₹{data['price']:.1f}", f"{data['change']:.2f}%")
+        r1.metric(f"Current MCX Bhav ({unit})", f"₹{data['price']:.1f}", f"{data['change']:.2f}%")
         r2.metric(f"20 MA ({tf_choice})", f"₹{data['sma']:.1f}")
         r3.metric("Trend", data['trend'])
 
@@ -195,19 +232,13 @@ if nav_page == "🛢️ Live Terminal & Levels":
         l5.metric("S2 (Strong Buyer)", f"₹{data['s2']:.1f}")
 
         st.markdown("---")
-        st.markdown(f"#### 📈 {name} Live Chart")
-        chart_html = f"""
-        <div style="height:350px;">
-          <iframe src="https://s.tradingview.com/widgetembed/?symbol={symbol_tv}&interval={tf_map[tf_choice]}&theme=light&style=1&timezone=Asia%2FKolkata&locale=en" width="100%" height="350" frameborder="0"></iframe>
-        </div>
-        """
-        components.html(chart_html, height=360)
-        st.link_button(f"🔗 Open {name} Full Chart (Instant High-Speed)", f"https://in.tradingview.com/chart/?symbol={symbol_tv}")
+        # ULTRA-FAST NATIVE CHART
+        render_fast_candlestick(data['df'], name)
 
     with t1:
-        display_asset_tab(crude_data, "Crude Oil", "₹/bbl", "MCX:CRUDEOIL1!")
+        display_asset_tab(crude_data, "Crude Oil", "₹/bbl")
     with t2:
-        display_asset_tab(gas_data, "Natural Gas", "₹/mmBtu", "MCX:NATURALGAS1!")
+        display_asset_tab(gas_data, "Natural Gas", "₹/mmBtu")
 
 # ==================== PAGE 2: PATTERNS ====================
 elif nav_page == "🎯 Pattern Scanner & Setups":
@@ -231,17 +262,17 @@ elif nav_page == "🎯 Pattern Scanner & Setups":
                 c4.metric("Target 2 (1:2.0)", f"₹{p['t2']:.1f}")
                 st.divider()
         else:
-            st.info("⏳ Pichli candles me consolidation chal raha hai. S1/R1 levels ka breakout wait karein.")
+            st.info("⏳ Pichli candles me consolidation chal raha hai. S1/R1 breakout ya fresh pattern ka wait karein.")
 
     with p1:
         show_pat_view(crude_data, "Crude Oil")
     with p2:
         show_pat_view(gas_data, "Natural Gas")
 
-# ==================== PAGE 3: CALCULATOR & CHECKLIST ====================
+# ==================== PAGE 3: CALCULATOR ====================
 elif nav_page == "🧮 Risk, Lot & Brokerage Calculator":
-    st.subheader("🧮 Position Size & Angel One Net Profit/Loss Calculator")
-    st.caption("F&O me over-trading aur bade loss se bachne ke liye exact numbers dekhein:")
+    st.subheader("🧮 Position Size & Net Profit/Loss Calculator")
+    st.caption("Bade loss aur over-trading se bachne ke liye exact numbers dekhein:")
 
     col_calc1, col_calc2 = st.columns(2)
     
@@ -252,7 +283,6 @@ elif nav_page == "🧮 Risk, Lot & Brokerage Calculator":
         sl_p = st.number_input("Planned Stop-Loss Price (₹):", value=6270.0, step=5.0)
         tgt_p = st.number_input("Planned Target Price (₹):", value=6360.0, step=5.0)
 
-        # Lot size mapping
         lot_size = 100 if "Mega - 100" in asset_type else (10 if "Mini - 10" in asset_type else (1250 if "Mega - 1250" in asset_type else 250))
         pts_risk = abs(entry_p - sl_p)
         pts_gain = abs(tgt_p - entry_p)
@@ -264,25 +294,23 @@ elif nav_page == "🧮 Risk, Lot & Brokerage Calculator":
         st.markdown("#### 📊 Calculation Result:")
         total_risk_val = risk_per_lot * recommended_lots
         gross_profit = pts_gain * lot_size * recommended_lots
-        # Approx MCX brokerage + taxes ~ ₹65-₹85 per round-trip trade
         est_taxes = 75.0 * recommended_lots
         net_profit = gross_profit - est_taxes
         net_loss = total_risk_val + est_taxes
 
         st.metric("Recommended Lot Count:", f"{recommended_lots} Lot")
-        st.metric("Total Stop-Loss Risk (₹):", f"-₹{net_loss:.1f}", help="Taxes jod kar")
-        st.metric("Target Hit Net Profit (₹):", f"+₹{net_profit:.1f}", help="Angel One brokerage aur taxes cut hone ke baad")
+        st.metric("Total Stop-Loss Risk (₹):", f"-₹{net_loss:.1f}")
+        st.metric("Target Hit Net Profit (₹):", f"+₹{net_profit:.1f}")
 
     st.markdown("---")
-    st.subheader("🛡️ Pre-Trade Discipline Checklist (Emotion Blocker)")
-    st.caption("Trade lene se pehle in 4 boxes ko tick karein. Agar ek bhi NO hai to trade avoid karein:")
-    c_box1 = st.checkbox("1. Kya Candle Close hone par pattern confirm hua hai? (Running candle me jaldbazi nahi)")
-    c_box2 = st.checkbox("2. Kya agle 30 minute me koi US EIA Inventory / High Impact Event nahi hai?")
-    c_box3 = st.checkbox(f"3. Kya Angel One me System Stop-Loss (₹{sl_p:.1f}) order lagane ke liye ready hain?")
+    st.subheader("🛡️ Pre-Trade Discipline Checklist")
+    c_box1 = st.checkbox("1. Kya Candle Close hone par pattern confirm hua hai?")
+    c_box2 = st.checkbox("2. Kya agle 30 minute me koi US EIA Inventory data nahi hai?")
+    c_box3 = st.checkbox(f"3. Kya System me Stop-Loss (₹{sl_p:.1f}) lagane ke liye ready hain?")
     c_box4 = st.checkbox("4. Kya Risk-to-Reward ratio kam se kam 1:1.5 hai?")
 
     if c_box1 and c_box2 and c_box3 and c_box4:
-        st.success("🟢 ALL CLEAR! Aap rules ke mutabiq disciplined trade le sakte hain.")
+        st.success("🟢 ALL CLEAR! Disciplined trade plan ke mutabiq execute karein.")
     else:
         st.warning("⚠️ RULES INCOMPLETE: Emotion me aakar trade na lein.")
 
@@ -290,15 +318,13 @@ elif nav_page == "🧮 Risk, Lot & Brokerage Calculator":
 elif nav_page == "📑 OPEC & EIA Inventory":
     st.subheader("📑 OPEC+ Policy & Weekly US EIA Storage Guide")
     
-    # COUNTDOWN CALCULATION
-    weekday = now_ist.weekday() # 2=Wed, 3=Thu
-    st.markdown("#### ⏳ Next Major Data Event Status:")
+    weekday = now_ist.weekday()
     if weekday == 2:
-        st.warning("🚨 AAJ CRUDE OIL INVENTORY HAI! (Raat 8:00 / 8:30 PM IST). 7:45 PM se fresh position avoid karein.")
+        st.warning("🚨 AAJ CRUDE OIL INVENTORY HAI! (Raat 8:00 / 8:30 PM IST). Data time trade avoid karein.")
     elif weekday == 3:
-        st.warning("🚨 AAJ NATURAL GAS INVENTORY HAI! (Raat 8:00 PM IST). Data release ke dauran fast spikes aate hain.")
+        st.warning("🚨 AAJ NATURAL GAS INVENTORY HAI! (Raat 8:00 PM IST). Heavy spikes ka dhyan rakhein.")
     else:
-        st.info("✅ Aaj koi major regular weekly inventory data nahi hai. Chart levels follow karein.")
+        st.info("✅ Aaj koi major regular weekly inventory report nahi hai.")
 
     st.markdown("---")
     st.markdown("""
@@ -342,4 +368,4 @@ elif nav_page == "🚨 High Impact Hindi News":
         st.markdown(f"👉 **Bhav Par Seedha Asar:** `{tag}` — {asar}")
         st.caption(f"Time: {item.get('published', '')}")
         st.divider()
-            
+             
