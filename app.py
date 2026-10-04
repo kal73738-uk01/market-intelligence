@@ -44,20 +44,25 @@ nav_page = st.radio(
 
 st.markdown("---")
 
-ist = pytz.timezone("Asia/Kolkata")
-now_ist = datetime.now(ist)
-
-# --- TIMEFRAME SELECTOR ---
 tf_choice = st.selectbox(
     "⏱️ Timeframe Analysis:",
-    ["15 Minute (Intraday Standard)", "5 Minute (Fast Scalping)", "1 Hour (Swing/Positional)"]
+    [
+        "15 Minute (Intraday Standard)", 
+        "5 Minute (Fast Scalping)", 
+        "1 Hour (Swing/Positional)",
+        "1 Day (Daily Trend & Swing)",
+        "1 Week (Weekly Macro Outlook)"
+    ]
 )
 tf_map = {
     "5 Minute (Fast Scalping)": ("5m", "5d"),
     "15 Minute (Intraday Standard)": ("15m", "10d"),
-    "1 Hour (Swing/Positional)": ("60m", "1mo")
+    "1 Hour (Swing/Positional)": ("60m", "1mo"),
+    "1 Day (Daily Trend & Swing)": ("1d", "6mo"),
+    "1 Week (Weekly Macro Outlook)": ("1wk", "2y")
 }
 interval_val, period_val = tf_map[tf_choice]
+
 
 # --- ROBUST MARKET ENGINE ---
 @st.cache_data(ttl=60)
