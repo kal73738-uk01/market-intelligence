@@ -3,7 +3,7 @@ import feedparser
 import yfinance as yf
 import plotly.graph_objects as go
 import streamlit.components.v1 as components
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 
 st.set_page_config(page_title="MCX Institutional Terminal Pro", page_icon="⛽", layout="wide")
@@ -44,6 +44,10 @@ nav_page = st.radio(
 
 st.markdown("---")
 
+ist = pytz.timezone("Asia/Kolkata")
+now_ist = datetime.now(ist)
+
+# --- TIMEFRAME SELECTOR ---
 tf_choice = st.selectbox(
     "⏱️ Timeframe Analysis:",
     [
@@ -62,7 +66,6 @@ tf_map = {
     "1 Week (Weekly Macro Outlook)": ("1wk", "2y")
 }
 interval_val, period_val = tf_map[tf_choice]
-
 
 # --- ROBUST MARKET ENGINE ---
 @st.cache_data(ttl=60)
@@ -152,7 +155,6 @@ def analyze_market_mechanics(df, levels, current_price):
     body = abs(c_close - c_open)
     lower_wick = min(c_open, c_close) - c_low
     upper_wick = c_high - max(c_open, c_close)
-    vol_confirmed = curr['Volume'] >= prev['Volume']
 
     def near_key_level(price_pt):
         for lvl in levels:
@@ -219,7 +221,7 @@ def analyze_market_mechanics(df, levels, current_price):
             "trailing_rule": f"Bhav ₹{(entry - (risk * 0.75)):.1f} aate hi Stop-Loss entry rate par shift karein."
         }
 
-    # FALLBACK PRE-CALCULATED LEVEL CONFLUENCE IF NO SPECIFIC SINGLE CANDLE
+    # FALLBACK LEVEL SETUP
     if not setup:
         diff_pivot = current_price - levels[0]
         if diff_pivot > 0:
@@ -257,53 +259,73 @@ def analyze_market_mechanics(df, levels, current_price):
 
 crude_data, gas_data, dxy_val, dxy_chg = fetch_institutional_engine(interval_val, period_val)
 
-# PREDICTIVE CHART BUILDER (SHOWS FUTURE PROJECTED CANDLE)
+# --- VISUAL FLASH CARD & HIGH-ZOOM CLOSEUP CHART ---
 def render_predictive_chart(data, name):
     df = data['df'].copy()
     setup = data['setup']
 
+    # 1. VISUAL SNAPSHOT CARD (CHART ME GHUSNA NAHI PADEGA)
+    if setup:
+        card_color = "#1b5e20" if setup['type'] == "BUY" else "#b71c1c"
+        st.markdown(f"""
+        <div style="background-color: {card_color}; padding: 14px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #ffffff44;">
+            <h3 style="margin: 0; color: white;">🎯 VISUAL PATTERN SNAPSHOT: {setup['name']}</h3>
+            <p style="margin: 4px 0; color: #ffeb3b; font-size: 15px;"><b>Confidence:</b> {setup['accuracy']} | <b>Type:</b> {setup['type']}</p>
+            <div style="display: flex; justify-content: space-between; margin-top: 8px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;">
+                <span style="color: #64b5f6; font-size: 16px;"><b>Entry:</b> ₹{setup['entry']:.1f}</span>
+                <span style="color: #e57373; font-size: 16px;"><b>SL:</b> ₹{setup['sl']:.1f}</span>
+                <span style="color: #81c784; font-size: 16px;"><b>Target:</b> ₹{setup['t1']:.1f}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # 2. HIGH-ZOOM CLOSEUP (LAST 14 CANDLES ONLY)
+    zoom_df = df.tail(14)
+
     fig = go.Figure()
     fig.add_trace(go.Candlestick(
-        x=df.index, open=df['O_INR'], high=df['H_INR'], low=df['L_INR'], close=df['C_INR'],
+        x=zoom_df.index, open=zoom_df['O_INR'], high=zoom_df['H_INR'], low=zoom_df['L_INR'], close=zoom_df['C_INR'],
         name="Past Candles", increasing_line_color='#26a69a', decreasing_line_color='#ef5350'
     ))
-    fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], mode='lines', name='20 SMA', line=dict(color='#ff9800', width=1.5)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['SMA20'], mode='lines', name='20 SMA', line=dict(color='#ff9800', width=1.5)))
 
-    # FUTURE PREDICTED TARGET CANDLE PLOT
     if setup:
         col = "#00e676" if setup['type'] == "BUY" else "#ff1744"
         sym = "triangle-up" if setup['type'] == "BUY" else "triangle-down"
-        
-        # Origin Marker
+
         fig.add_trace(go.Scatter(
             x=[setup['idx']], y=[setup['price_point']], mode="markers+text",
-            marker=dict(symbol=sym, size=15, color=col),
-            text=[f"📍 Setup: {setup['name']}"], textposition="bottom center" if setup['type'] == "BUY" else "top center",
+            marker=dict(symbol=sym, size=18, color=col),
+            text=[f"🎯 SETUP"], textposition="bottom center" if setup['type'] == "BUY" else "top center",
             name="Confirmed Point"
         ))
 
-        # Projected Future Candle
-        last_t = df.index[-1]
-        next_t = last_t + (last_t - df.index[-2])
+        # Aane Wali Target Prediction Candle (Moti aur Saaf)
+        last_t = zoom_df.index[-1]
+        next_t = last_t + (last_t - zoom_df.index[-2])
         proj_open = setup['entry']
         proj_close = setup['t1']
-        proj_high = max(proj_open, proj_close) + abs(proj_close - proj_open) * 0.2
-        proj_low = min(proj_open, proj_close) - abs(proj_close - proj_open) * 0.2
+        proj_high = max(proj_open, proj_close) + abs(proj_close - proj_open) * 0.15
+        proj_low = min(proj_open, proj_close) - abs(proj_close - proj_open) * 0.15
 
         fig.add_trace(go.Candlestick(
             x=[next_t], open=[proj_open], high=[proj_high], low=[proj_low], close=[proj_close],
-            name="Projected Next Move (Forecast)",
+            name="Forecast Target Candle",
             increasing_line_color='#00e5ff', decreasing_line_color='#ffea00'
         ))
 
-        fig.add_hline(y=setup['entry'], line_dash="dot", line_color="#2196f3", annotation_text=f"Entry: ₹{setup['entry']:.1f}")
-        fig.add_hline(y=setup['sl'], line_dash="dash", line_color="#f44336", annotation_text=f"SL: ₹{setup['sl']:.1f}")
-        fig.add_hline(y=setup['t1'], line_dash="dash", line_color="#4caf50", annotation_text=f"Target 1: ₹{setup['t1']:.1f}")
+        fig.add_hline(y=setup['entry'], line_dash="dot", line_color="#2196f3")
+        fig.add_hline(y=setup['sl'], line_dash="dash", line_color="#f44336")
+        fig.add_hline(y=setup['t1'], line_dash="dash", line_color="#4caf50")
 
     fig.update_layout(
-        title=f"{name} Pre-Calculated Pattern Forecast Chart (Cyan Candle = Projected Target Move)",
-        yaxis_title="Price (₹)", xaxis_rangeslider_visible=False, height=420,
-        margin=dict(l=10, r=10, t=35, b=10), template="plotly_dark"
+        title=f"{name} Closeup Forecast Chart (Cyan/Yellow = Agla Move)",
+        yaxis_title="Price (₹)",
+        xaxis_rangeslider_visible=False,
+        height=540,
+        margin=dict(l=10, r=10, t=35, b=10),
+        template="plotly_dark",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -480,7 +502,7 @@ elif nav_page == "📓 My Discipline Journal":
         st.info("Abhi tak koi trade record nahi kiya gaya.")
 
 # ========================================================
-# PAGE 6: OPEC/EIA & NEWS WITH DIRECT ACTION IMPACT
+# PAGE 6: OPEC/EIA & NEWS
 # ========================================================
 elif nav_page == "📑 OPEC/EIA & News":
     st.subheader("📑 OPEC, EIA Storage & Live Market Impact Guide")
@@ -490,7 +512,6 @@ elif nav_page == "📑 OPEC/EIA & News":
     for item in feed.entries[:8]:
         t = item.title.lower()
 
-        # DYNAMIC DEEP MARKET IMPACT TRANSLATOR
         if "steady" in t or "holds" in t or "hold output" in t:
             action_tag = "⚖️ OPEC PRODUCTION STEADY (NEUTRAL TO BULLISH BIAS)"
             impact_hindi = "OPEC+ ne utpadan nahi badhaya hai. Supply tight rahegi, iska matlab Crude Oil me downside safe hai aur dips par buying support milega."
@@ -505,7 +526,7 @@ elif nav_page == "📑 OPEC/EIA & News":
             trade_advice = "Har upar ke bounce par resistance (R1/R2) se Put/Sell trade dhundein."
         else:
             action_tag = "📊 ROUTINE MARKET FLOW"
-            impact_hindi = "Normal market news hai. Market news par react na karke chart ke technical levels follow karegi."
+            impact_hindi = "Normal market news hai. Market technical levels follow karegi."
             trade_advice = "Sirf CPR aur Pivot levels par trade karein."
 
         st.markdown(f"#### 📰 {item.title}")
