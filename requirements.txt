@@ -2,3 +2,4 @@ streamlit
 feedparser
 yfinance
 plotly
+requests
