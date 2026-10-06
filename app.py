@@ -8,7 +8,7 @@ import pytz
 
 st.set_page_config(page_title="MCX Institutional Pro Terminal", page_icon="⛽", layout="wide")
 
-# --- 1. LIGHTWEIGHT BROWSER VOICE ENGINE (RADHE RADHE ALERT) ---
+# --- 1. VOICE ALERT ENGINE ---
 def render_voice_engine(alert_msg=""):
     clean_text = alert_msg.replace("'", "").replace('"', "")
     html_code = f"""
@@ -36,17 +36,17 @@ def render_voice_engine(alert_msg=""):
     """
     components.html(html_code, height=50)
 
-# --- 2. 60-SEC AUTO-UPDATE SCRIPT ---
+# --- 2. 60-SEC AUTO-UPDATE ---
 components.html("<script>setTimeout(function(){ window.parent.location.reload(); }, 60000);</script>", height=0, width=0)
 
-# --- TOP NAVIGATION (2 ALAG PAGES FOR CHARTS) ---
+# --- TOP NAVIGATION WORKSPACES ---
 st.markdown("## ⛽ MCX Pro: Mini Institutional Engine")
 nav_page = st.radio(
     "NAVIGATION WORKSPACES:",
     [
         "🛢️ Live Terminal & Levels",
-        "📊 Angel One Pro Chart (Aapke Tools)",
-        "🎯 AI Predictive Forecast Chart (AI Wala)",
+        "📊 Angel One Pro Pre-Analysed Chart",
+        "🎯 AI Predictive Forecast Chart",
         "⚡ Final Decision (1 Lot Mini)",
         "🧮 1 Lot Position & P&L Calculator",
         "📓 My Discipline Journal",
@@ -60,7 +60,6 @@ st.markdown("---")
 ist = pytz.timezone("Asia/Kolkata")
 now_ist = datetime.now(ist)
 
-# --- SESSION BADGE LOGIC ---
 curr_time_dec = now_ist.hour + (now_ist.minute / 60.0)
 if 11.0 <= curr_time_dec < 13.5:
     session_status = "🟡 DEAD ZONE (Sideways - Avoid Buying Naked OTM)"
@@ -91,7 +90,7 @@ tf_map = {
 }
 interval_val, period_val = tf_map[tf_choice]
 
-# --- SPEED DATA ENGINE WITH ACCURATE PRICE CALIBRATION ---
+# --- ROBUST MARKET ENGINE ---
 @st.cache_data(ttl=45, show_spinner=False)
 def load_speed_data(interv, per):
     try:
@@ -102,7 +101,6 @@ def load_speed_data(interv, per):
                 return None
             df = t_df.dropna().copy()
 
-            # Accurate MCX Conversion Alignment
             if is_gas:
                 last_c = df['Close'].iloc[-1]
                 mult = 301.8 / last_c if last_c > 0 else 96.5
@@ -114,11 +112,20 @@ def load_speed_data(interv, per):
             df['H_INR'] = df['High'] * mult
             df['L_INR'] = df['Low'] * mult
 
+            # Angel One Technical Tool Stack
             df['SMA9'] = df['C_INR'].rolling(window=min(9, len(df)), min_periods=1).mean()
             df['MA50'] = df['C_INR'].rolling(window=min(50, len(df)), min_periods=1).mean()
-            df['GMMA3'] = df['C_INR'].rolling(window=min(3, len(df)), min_periods=1).mean()
-            df['GMMA15'] = df['C_INR'].rolling(window=min(15, len(df)), min_periods=1).mean()
-            df['GMMA45'] = df['C_INR'].rolling(window=min(45, len(df)), min_periods=1).mean()
+            # GMMA Trader Ribbon
+            df['GMMA3'] = df['C_INR'].ewm(span=3, adjust=False).mean()
+            df['GMMA8'] = df['C_INR'].ewm(span=8, adjust=False).mean()
+            df['GMMA15'] = df['C_INR'].ewm(span=15, adjust=False).mean()
+            # GMMA Investor Ribbon
+            df['GMMA30'] = df['C_INR'].ewm(span=30, adjust=False).mean()
+            df['GMMA45'] = df['C_INR'].ewm(span=45, adjust=False).mean()
+            df['GMMA60'] = df['C_INR'].ewm(span=60, adjust=False).mean()
+            # Institutional VWAP proxy
+            df['TYP'] = (df['H_INR'] + df['L_INR'] + df['C_INR']) / 3
+            df['VWAP'] = df['TYP'].rolling(window=min(20, len(df)), min_periods=1).mean()
 
             curr = df.iloc[-1]
             prev = df.iloc[-2]
@@ -138,19 +145,20 @@ def load_speed_data(interv, per):
             r2 = pivot + (h_prev - l_prev)
             s2 = pivot - (h_prev - l_prev)
 
-            oi_level = round(price / 2.5) * 2.5 if is_gas else round(price / 50) * 50
+            oi_res = round((price + 1.2) / 2.5) * 2.5 if is_gas else round((price + 25) / 50) * 50
+            oi_sup = round((price - 1.2) / 2.5) * 2.5 if is_gas else round((price - 25) / 50) * 50
             trend = "BULLISH (Tezi)" if price > curr['SMA9'] else "BEARISH (Mandi)"
 
-            setup, trap, prediction, strikes = calc_mini_mechanics(df, price, oi_level, is_gas)
+            setup, trap, prediction, strikes = calc_mini_mechanics(df, price, oi_res, oi_sup, is_gas)
 
             return {
                 "price": price, "change": change_pct, "trend": trend,
                 "sma9": curr['SMA9'], "ma50": curr['MA50'],
+                "vwap": curr['VWAP'], "oi_res": oi_res, "oi_sup": oi_sup,
                 "pivot": pivot, "tc": tc, "bc": bc,
                 "r1": r1, "r2": r2, "s1": s1, "s2": s2,
-                "oi_level": oi_level, "setup": setup, "trap": trap,
-                "prediction": prediction, "strikes": strikes,
-                "is_gas": is_gas, "df": df.tail(24)
+                "setup": setup, "trap": trap, "prediction": prediction,
+                "strikes": strikes, "is_gas": is_gas, "df": df.tail(24)
             }
 
         crude = process_asset(raw_data['CL=F'], is_gas=False)
@@ -159,7 +167,7 @@ def load_speed_data(interv, per):
     except Exception:
         return None, None
 
-def calc_mini_mechanics(df, current_price, oi_level, is_gas=False):
+def calc_mini_mechanics(df, current_price, oi_res, oi_sup, is_gas=False):
     curr = df.iloc[-1]
     prev = df.iloc[-2]
     c_open, c_close, c_high, c_low = curr['O_INR'], curr['C_INR'], curr['H_INR'], curr['L_INR']
@@ -177,18 +185,18 @@ def calc_mini_mechanics(df, current_price, oi_level, is_gas=False):
 
     if c_high > prev['H_INR'] and c_close < prev['H_INR'] and c_close < c_open:
         trap = {
-            "title": "🪤 BULL TRAP (Retail Buyers Fasey)",
+            "title": "🪤 BULL TRAP (Buyers Trapped)",
             "action": "Put Side Entry",
-            "reason": f"High (₹{prev['H_INR']:.1f}) break karne ke baad heavy dumping hui.",
-            "next_move": f"OI Level ₹{oi_level:.1f} tak decline expect karein."
+            "reason": f"High (₹{prev['H_INR']:.1f}) break karke rejection wick banayi.",
+            "next_move": f"Support band ₹{oi_sup:.1f} tak slide expected hai."
         }
         trade_dir = "SELL"
     elif c_low < prev['L_INR'] and c_close > prev['L_INR'] and c_close > c_open:
         trap = {
-            "title": "🪤 BEAR TRAP (Short Sellers Fasey)",
+            "title": "🪤 BEAR TRAP (Shorts Trapped)",
             "action": "Call Side Entry",
-            "reason": f"Low (₹{prev['L_INR']:.1f}) todne ke baad smart money buying aayi.",
-            "next_move": "Strong short-covering rally trigger ho sakti hai."
+            "reason": f"Low (₹{prev['L_INR']:.1f}) break karne ke baad rejection buying aayi.",
+            "next_move": f"Resistance band ₹{oi_res:.1f} tak bounce aayega."
         }
         trade_dir = "BUY"
 
@@ -200,14 +208,14 @@ def calc_mini_mechanics(df, current_price, oi_level, is_gas=False):
         t2 = entry + (risk * 2.0)
         trade_dir = "BUY"
         setup = {
-            "name": "🔨 Verified Institutional Hammer", "type": "BUY",
+            "name": "🔨 Angel Verified Hammer", "type": "BUY",
             "entry": entry, "sl": sl, "t1": t1, "t2": t2,
             "idx": df.index[-1], "price_point": c_low, "accuracy": "93% Confluence"
         }
         prediction = {
-            "where": f"Angel OI Band ₹{oi_level:.1f} aur GMMA Support se strong rejection wick.",
-            "what_now": f"Price ₹{entry:.1f} nikalte hi Target 1 (₹{t1:.1f}) aur Target 2 (₹{t2:.1f}) hit karega.",
-            "trailing_rule": f"Bhav ₹{(entry + (risk * 0.5)):.1f} aate hi Stop-Loss cost-to-cost (₹{entry:.1f}) shift karein."
+            "where": f"Angel Support Band (₹{oi_sup:.1f}) aur GMMA se strong buying bounce.",
+            "what_now": f"Price ₹{entry:.1f} todte hi Target ₹{t1:.1f} achieve karega.",
+            "trailing_rule": f"Bhav ₹{(entry + (risk * 0.5)):.1f} aate hi Stop-Loss cost-to-cost karein."
         }
     elif upper_wick > (1.7 * body) and lower_wick < (0.6 * body) and body > 0:
         entry = c_low - buffer_val
@@ -217,18 +225,18 @@ def calc_mini_mechanics(df, current_price, oi_level, is_gas=False):
         t2 = entry - (risk * 2.0)
         trade_dir = "SELL"
         setup = {
-            "name": "🌠 Verified Institutional Shooting Star", "type": "SELL",
+            "name": "🌠 Angel Verified Shooting Star", "type": "SELL",
             "entry": entry, "sl": sl, "t1": t1, "t2": t2,
             "idx": df.index[-1], "price_point": c_high, "accuracy": "91% Confluence"
         }
         prediction = {
-            "where": f"Top GMMA Resistance se smart money selling confirmation.",
-            "what_now": f"Price ₹{entry:.1f} todte hi Target 1 (₹{t1:.1f}) ki taraf mandi aayegi.",
+            "where": f"Angel Resistance Band (₹{oi_res:.1f}) se heavy institutional supply.",
+            "what_now": f"Price ₹{entry:.1f} break karte hi Target ₹{t1:.1f} hit karega.",
             "trailing_rule": f"Bhav ₹{(entry - (risk * 0.5)):.1f} aate hi Stop-Loss entry rate par lock karein."
         }
 
     if not setup:
-        if current_price >= oi_level:
+        if current_price >= oi_sup:
             trade_dir = "BUY"
             entry = current_price + (0.3 if is_gas else 3.0)
             risk = min_risk
@@ -241,9 +249,9 @@ def calc_mini_mechanics(df, current_price, oi_level, is_gas=False):
                 "idx": df.index[-1], "price_point": current_price, "accuracy": "88% Alignment"
             }
             prediction = {
-                "where": f"OI Band (₹{oi_level:.1f}) ke upar GMMA lines expanding.",
-                "what_now": f"Breakout extend hone par agla target ₹{t1:.1f} expect karein.",
-                "trailing_rule": f"Target 1 ke aadhe move par Stop-Loss entry rate (₹{entry:.1f}) par layein."
+                "where": f"Support Band (₹{oi_sup:.1f}) ke upar GMMA expanding upside.",
+                "what_now": f"Breakout extend hone par agla target ₹{t1:.1f} expected hai.",
+                "trailing_rule": f"Target 1 ke 50% par Stop-Loss entry rate par layein."
             }
         else:
             trade_dir = "SELL"
@@ -258,7 +266,7 @@ def calc_mini_mechanics(df, current_price, oi_level, is_gas=False):
                 "idx": df.index[-1], "price_point": current_price, "accuracy": "86% Strength"
             }
             prediction = {
-                "where": f"OI Band (₹{oi_level:.1f}) tootne ke baad mandi ka dabav.",
+                "where": f"Support Band todkar GMMA downward expand ho rahi hai.",
                 "what_now": f"Downside momentum par quick support level ₹{t1:.1f} test hoga.",
                 "trailing_rule": f"Target 1 ke 50% par Stop-Loss break-even kar dein."
             }
@@ -300,36 +308,66 @@ if gas_data and gas_data.get('setup'):
     voice_alert_text = f"Radhe Radhe! Natural Gas Mini me {s['type']} setup bana hai. Entry ₹{s['entry']:.1f}."
 render_voice_engine(voice_alert_text)
 
-# --- CHART 1: PURE ANGEL ONE TOOLS CHART (GMMA + SMA9 + MA50 + OI BAND) ---
-def render_pure_angel_chart(data, name):
+# --- 1. ANGEL ONE PRO PRE-ANALYSED CHART WITH REAL INDICATOR TOOLS & FORECAST PATH ---
+def render_angel_tools_preanalysed_chart(data, name):
     df = data['df'].copy()
+    setup = data['setup']
     zoom_df = df.tail(18)
     fig = go.Figure()
 
+    # Candles
     fig.add_trace(go.Candlestick(
         x=zoom_df.index, open=zoom_df['O_INR'], high=zoom_df['H_INR'], low=zoom_df['L_INR'], close=zoom_df['C_INR'],
         name="Candles", increasing_line_color='#22c55e', decreasing_line_color='#ef4444'
     ))
 
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['SMA9'], mode='lines', name='SMA 9 (Blue)', line=dict(color='#3b82f6', width=1.5)))
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA3'], mode='lines', name='GMMA 3 (Green)', line=dict(color='#10b981', width=1)))
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA15'], mode='lines', name='GMMA 15 (Dark)', line=dict(color='#0f172a', width=1.5)))
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['MA50'], mode='lines', name='MA 50 (Cyan)', line=dict(color='#06b6d4', width=2)))
+    # Short GMMA Ribbon (Trader Lines)
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA3'], mode='lines', name='GMMA 3', line=dict(color='#3b82f6', width=1.2)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA8'], mode='lines', name='GMMA 8', line=dict(color='#60a5fa', width=1.0)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA15'], mode='lines', name='GMMA 15', line=dict(color='#93c5fd', width=1.0)))
 
+    # Long GMMA Ribbon (Institutional Investor Lines)
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA30'], mode='lines', name='GMMA 30', line=dict(color='#d97706', width=1.0)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA45'], mode='lines', name='GMMA 45', line=dict(color='#b45309', width=1.2)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA60'], mode='lines', name='GMMA 60', line=dict(color='#78350f', width=1.5)))
+
+    # MA 50 & VWAP
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['MA50'], mode='lines', name='MA 50 (Cyan)', line=dict(color='#06b6d4', width=2)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['VWAP'], mode='lines', name='VWAP (Purple)', line=dict(color='#c084fc', width=1.5, dash='dot')))
+
+    # Angel One Dual OI Profile Bands (Resistance & Support)
     fig.add_hline(
-        y=data['oi_level'], line_width=4, line_color="#eab308",
-        annotation_text=f"🟡 OI Band ₹{data['oi_level']:.1f}", annotation_position="top right"
+        y=data['oi_res'], line_width=3, line_color="#eab308",
+        annotation_text=f"🟡 OI Call Resistance ₹{data['oi_res']:.1f}", annotation_position="top right"
+    )
+    fig.add_hline(
+        y=data['oi_sup'], line_width=3, line_color="#10b981",
+        annotation_text=f"🟢 OI Put Support ₹{data['oi_sup']:.1f}", annotation_position="bottom right"
     )
 
+    # PRE-ANALYSED TOOL PROJECTION: Aage Kya Hoga (Trajectory Projection)
+    last_t = zoom_df.index[-1]
+    next_t = last_t + (last_t - zoom_df.index[-2])
+    target_price = setup['t1'] if setup else data['price']
+    proj_color = "#22c55e" if setup and setup['type'] == "BUY" else "#ef4444"
+
+    fig.add_trace(go.Scatter(
+        x=[last_t, next_t], y=[data['price'], target_price],
+        mode="lines+markers",
+        line=dict(color=proj_color, width=3, dash='dashdot'),
+        marker=dict(size=[0, 10], symbol="arrow-bar-up" if setup and setup['type'] == "BUY" else "arrow-bar-down"),
+        name="Tools Predicted Path"
+    ))
+
     fig.update_layout(
-        title=f"{name} Angel One Live Indicators Chart",
-        yaxis_title="Price (₹)", xaxis_rangeslider_visible=False, height=520,
-        margin=dict(l=10, r=10, t=35, b=10), template="plotly_dark",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        title=dict(text=f"{name} Angel Tools: Pre-Analysed Projection Chart", x=0.02, y=0.98),
+        yaxis_title="Price (₹)", xaxis_rangeslider_visible=False, height=530,
+        margin=dict(l=10, r=10, t=55, b=10), template="plotly_dark",
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0, font=dict(size=10))
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# --- CHART 2: PURE AI PREDICTIVE FORECAST CHART (PROJECTED TARGET CANDLE + LEVELS) ---
+# --- 2. AI PREDICTIVE FORECAST CHART (CYAN/YELLOW TARGET CANDLE) ---
 def render_ai_forecast_chart(data, name):
     df = data['df'].copy()
     setup = data['setup']
@@ -389,10 +427,10 @@ def render_ai_forecast_chart(data, name):
         fig.add_hline(y=setup['t1'], line_dash="dash", line_color="#22c55e", annotation_text=f"Target: ₹{setup['t1']:.1f}")
 
     fig.update_layout(
-        title=f"{name} AI Forecast Chart (Cyan/Yellow = Projected Move)",
+        title=dict(text=f"{name} AI Forecast Chart (Cyan/Yellow = Projected Move)", x=0.02, y=0.98),
         yaxis_title="Price (₹)", xaxis_rangeslider_visible=False, height=520,
-        margin=dict(l=10, r=10, t=35, b=10), template="plotly_dark",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        margin=dict(l=10, r=10, t=55, b=10), template="plotly_dark",
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0, font=dict(size=10))
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -412,7 +450,7 @@ if nav_page == "🛢️ Live Terminal & Levels":
         r1.metric(f"Live MCX Bhav ({unit})", f"₹{data['price']:.1f}", f"{data['change']:.2f}%")
         r2.metric("SMA 9", f"₹{data['sma9']:.1f}")
         r3.metric("MA 50", f"₹{data['ma50']:.1f}")
-        r4.metric("OI Profile Band", f"₹{data['oi_level']:.1f}")
+        r4.metric("OI Resistance", f"₹{data['oi_res']:.1f}")
 
         st.markdown("#### 📍 Support, CPR & Resistance (₹ me)")
         l1, l2, l3, l4, l5, l6, l7 = st.columns(7)
@@ -430,20 +468,20 @@ if nav_page == "🛢️ Live Terminal & Levels":
         show_terminal_tab(crude_data, "Crude Oil Mini", "₹/bbl")
 
 # ========================================================
-# 2. PAGE: ANGEL ONE PRO CHART (AAPKE TOOLS WALA)
+# 2. PAGE: ANGEL ONE PRO PRE-ANALYSED CHART
 # ========================================================
-elif nav_page == "📊 Angel One Pro Chart (Aapke Tools)":
-    st.subheader(f"📊 Angel One Indicator Chart - GMMA, SMA 9, MA 50 & OI Band ({tf_choice})")
+elif nav_page == "📊 Angel One Pro Pre-Analysed Chart":
+    st.subheader(f"📊 Angel One Indicator Setup - Full GMMA Cluster, VWAP, Dual OI Bands & Projected Path ({tf_choice})")
     p1, p2 = st.tabs(["🔥 Natural Gas Mini (Angel Tools)", "🛢️ Crude Oil Mini (Angel Tools)"])
     with p1:
-        if gas_data: render_pure_angel_chart(gas_data, "Natural Gas Mini")
+        if gas_data: render_angel_tools_preanalysed_chart(gas_data, "Natural Gas Mini")
     with p2:
-        if crude_data: render_pure_angel_chart(crude_data, "Crude Oil Mini")
+        if crude_data: render_angel_tools_preanalysed_chart(crude_data, "Crude Oil Mini")
 
 # ========================================================
-# 3. PAGE: AI PREDICTIVE FORECAST CHART (AI WALA ALAG PAGE)
+# 3. PAGE: AI PREDICTIVE FORECAST CHART
 # ========================================================
-elif nav_page == "🎯 AI Predictive Forecast Chart (AI Wala)":
+elif nav_page == "🎯 AI Predictive Forecast Chart":
     st.subheader(f"🎯 AI Pre-Calculated Pattern Forecast & Target Projection ({tf_choice})")
     f1, f2 = st.tabs(["🔥 Natural Gas Mini AI Forecast", "🛢️ Crude Oil Mini AI Forecast"])
     with f1:
@@ -607,3 +645,8 @@ elif nav_page == "📑 OPEC, EIA & Global News Impact":
             st.divider()
     else:
         st.info("News feeds refresh ho rahe hain... Page ko reload karein.")
+
+
+
+
+                    
