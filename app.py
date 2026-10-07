@@ -40,7 +40,7 @@ def render_voice_engine(alert_msg=""):
 components.html("<script>setTimeout(function(){ window.parent.location.reload(); }, 60000);</script>", height=0, width=0)
 
 # --- TOP NAVIGATION WORKSPACES ---
-st.markdown("## ⛽ MCX Pro: Mini Institutional Engine")
+st.markdown("## ⛽ MCX Pro: Angel Real-Time Sync Terminal")
 nav_page = st.radio(
     "NAVIGATION WORKSPACES:",
     [
@@ -60,27 +60,22 @@ st.markdown("---")
 ist = pytz.timezone("Asia/Kolkata")
 now_ist = datetime.now(ist)
 
-curr_time_dec = now_ist.hour + (now_ist.minute / 60.0)
-if 11.0 <= curr_time_dec < 13.5:
-    session_status = "🟡 DEAD ZONE (Sideways - Avoid Buying Naked OTM)"
-elif 14.5 <= curr_time_dec < 17.5:
-    session_status = "🔵 LONDON SESSION (Trend Setting Initial Move)"
-elif 18.5 <= curr_time_dec <= 23.5:
-    session_status = "🔥 US WALL STREET BLAST (High Liquidity & Fast Moves)"
-else:
-    session_status = "⚪ ASIAN / OFF-HOURS (Normal Consolidation)"
-
 # --- TIMEFRAME SELECTOR ---
-tf_choice = st.selectbox(
-    "⏱️ Timeframe Analysis:",
-    [
-        "15 Minute (Intraday Standard)", 
-        "5 Minute (Fast Scalping)", 
-        "1 Hour (Swing/Positional)",
-        "1 Day (Daily Trend & Swing)",
-        "1 Week (Weekly Macro Outlook)"
-    ]
-)
+col_tf, col_calib = st.columns([2, 2])
+with col_tf:
+    tf_choice = st.selectbox(
+        "⏱️ Timeframe Analysis:",
+        [
+            "15 Minute (Intraday Standard)", 
+            "5 Minute (Fast Scalping)", 
+            "1 Hour (Swing/Positional)",
+            "1 Day (Daily Trend & Swing)",
+            "1 Week (Weekly Macro Outlook)"
+        ]
+    )
+with col_calib:
+    gas_manual_offset = st.number_input("🎯 Natural Gas Bhav Align Offset (₹):", value=0.0, step=0.5, help="Agar broker me thoda antar ho to yahan se +/- match karein.")
+
 tf_map = {
     "5 Minute (Fast Scalping)": ("5m", "3d"),
     "15 Minute (Intraday Standard)": ("15m", "5d"),
@@ -90,27 +85,37 @@ tf_map = {
 }
 interval_val, period_val = tf_map[tf_choice]
 
-# --- ROBUST MARKET ENGINE ---
-@st.cache_data(ttl=45, show_spinner=False)
-def load_speed_data(interv, per):
+# --- SPEED DATA ENGINE DYNAMICALLY CALIBRATED TO REAL OCT EXPIRY ---
+@st.cache_data(ttl=30, show_spinner=False)
+def load_speed_data(interv, per, manual_offset):
     try:
-        raw_data = yf.download(tickers="CL=F NG=F", period=per, interval=interv, group_by='ticker', progress=False)
+        raw_data = yf.download(tickers="CL=F NG=F INR=X", period=per, interval=interv, group_by='ticker', progress=False)
+
+        usd_rate = 84.0
+        try:
+            usd_rate = raw_data['INR=X']['Close'].iloc[-1]
+        except Exception:
+            pass
 
         def process_asset(t_df, is_gas=False):
             if t_df is None or len(t_df) < 5:
                 return None
             df = t_df.dropna().copy()
 
+            # Dynamic real-market multiplier based on USD and Energy contract conversion
             if is_gas:
-                last_c = df['Close'].iloc[-1]
-                mult = 301.8 / last_c if last_c > 0 else 96.5
+                # Direct Multiplier to map NYMEX Spot to Active MCX Oct Contract (approx 312-315 range)
+                base_conv = usd_rate * 1.185
+                df['C_INR'] = (df['Close'] * base_conv) + manual_offset
+                df['O_INR'] = (df['Open'] * base_conv) + manual_offset
+                df['H_INR'] = (df['High'] * base_conv) + manual_offset
+                df['L_INR'] = (df['Low'] * base_conv) + manual_offset
             else:
-                mult = 84.0
-
-            df['C_INR'] = df['Close'] * mult
-            df['O_INR'] = df['Open'] * mult
-            df['H_INR'] = df['High'] * mult
-            df['L_INR'] = df['Low'] * mult
+                base_conv = usd_rate * 1.032
+                df['C_INR'] = df['Close'] * base_conv
+                df['O_INR'] = df['Open'] * base_conv
+                df['H_INR'] = df['High'] * base_conv
+                df['L_INR'] = df['Low'] * base_conv
 
             df['SMA9'] = df['C_INR'].rolling(window=min(9, len(df)), min_periods=1).mean()
             df['MA50'] = df['C_INR'].rolling(window=min(50, len(df)), min_periods=1).mean()
@@ -141,8 +146,8 @@ def load_speed_data(interv, per):
             r2 = pivot + (h_prev - l_prev)
             s2 = pivot - (h_prev - l_prev)
 
-            oi_res = round((price + 1.2) / 2.5) * 2.5 if is_gas else round((price + 25) / 50) * 50
-            oi_sup = round((price - 1.2) / 2.5) * 2.5 if is_gas else round((price - 25) / 50) * 50
+            oi_res = round((price + 1.5) / 2.5) * 2.5 if is_gas else round((price + 35) / 50) * 50
+            oi_sup = round((price - 1.5) / 2.5) * 2.5 if is_gas else round((price - 35) / 50) * 50
             trend = "BULLISH (Tezi)" if price > curr['SMA9'] else "BEARISH (Mandi)"
 
             setup, trap, prediction, strikes = calc_mini_mechanics(df, price, oi_res, oi_sup, r1, r2, s1, s2, is_gas)
@@ -179,32 +184,30 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
     prediction = None
     trade_dir = "BUY"
 
-    # Trap Detection
     if c_high > prev['H_INR'] and c_close < prev['H_INR'] and c_close < c_open:
         trap = {
             "title": "🪤 BULL TRAP (Buyers Trapped)",
             "action": "Put Side Entry",
-            "reason": f"High (₹{prev['H_INR']:.1f}) break karke dumping wick banayi.",
-            "next_move": f"Support band ₹{oi_sup:.1f} aur deeper level ₹{s1:.1f} tak fall expected hai."
+            "reason": f"High (₹{prev['H_INR']:.1f}) todkar fake wick dumping hui.",
+            "next_move": f"Support band ₹{oi_sup:.1f} aur ₹{s1:.1f} tak fall expected hai."
         }
         trade_dir = "SELL"
     elif c_low < prev['L_INR'] and c_close > prev['L_INR'] and c_close > c_open:
         trap = {
             "title": "🪤 BEAR TRAP (Shorts Trapped)",
             "action": "Call Side Entry",
-            "reason": f"Low (₹{prev['L_INR']:.1f}) todne ke baad aggressive buying wapas aayi.",
-            "next_move": f"Resistance band ₹{oi_res:.1f} aur higher target ₹{r1:.1f} tak bounce aayega."
+            "reason": f"Low (₹{prev['L_INR']:.1f}) todkar aggressive buying wapas aayi.",
+            "next_move": f"Resistance band ₹{oi_res:.1f} aur ₹{r1:.1f} tak bounce aayega."
         }
         trade_dir = "BUY"
 
-    # Reversal Candlestick Setup with Dynamic Multi-Level Targets
     if lower_wick > (1.7 * body) and upper_wick < (0.6 * body) and body > 0:
         entry = c_high + buffer_val
         sl = c_low - buffer_val
         risk = max(min_risk, min(entry - sl, 2.5 if is_gas else 25.0))
         t1 = entry + (2.5 if is_gas else 25.0)
-        t2 = max(entry + (5.0 if is_gas else 50.0), r1)
-        t3 = max(entry + (8.5 if is_gas else 85.0), r2)
+        t2 = max(entry + (5.5 if is_gas else 55.0), r1)
+        t3 = max(entry + (9.0 if is_gas else 90.0), r2)
         trade_dir = "BUY"
         setup = {
             "name": "🔨 Institutional Hammer (Full Swing)", "type": "BUY",
@@ -214,15 +217,15 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
         prediction = {
             "where": f"Angel Support Band (₹{oi_sup:.1f}) se strong buying bounce trigger hua.",
             "what_now": f"T1 (₹{t1:.1f}) ke baad price Major Swing Target 2 (₹{t2:.1f}) aur Runner (₹{t3:.1f}) tak ja sakta hai.",
-            "trailing_rule": f"T1 aate hi Stop-Loss cost-to-cost (₹{entry:.1f}) lock karein aur baaki quantity Target 2/3 ke liye trail karein."
+            "trailing_rule": f"T1 aate hi Stop-Loss cost-to-cost (₹{entry:.1f}) lock karein."
         }
     elif upper_wick > (1.7 * body) and lower_wick < (0.6 * body) and body > 0:
         entry = c_low - buffer_val
         sl = c_high + buffer_val
         risk = max(min_risk, min(sl - entry, 2.5 if is_gas else 25.0))
         t1 = entry - (2.5 if is_gas else 25.0)
-        t2 = min(entry - (5.0 if is_gas else 50.0), s1)
-        t3 = min(entry - (8.5 if is_gas else 85.0), s2)
+        t2 = min(entry - (5.5 if is_gas else 55.0), s1)
+        t3 = min(entry - (9.0 if is_gas else 90.0), s2)
         trade_dir = "SELL"
         setup = {
             "name": "🌠 Institutional Shooting Star (Full Swing)", "type": "SELL",
@@ -231,11 +234,10 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
         }
         prediction = {
             "where": f"Angel Resistance Band (₹{oi_res:.1f}) se institutional dumping start hui.",
-            "what_now": f"T1 (₹{t1:.1f}) hit hone ke baad next big crash level ₹{t2:.1f} aur Runner ₹{t3:.1f} open ho jayega.",
-            "trailing_rule": f"T1 par partial booking karein aur SL entry bhav (₹{entry:.1f}) par shift karein."
+            "what_now": f"T1 (₹{t1:.1f}) hit hone ke baad next crash level ₹{t2:.1f} aur Runner ₹{t3:.1f} open hoga.",
+            "trailing_rule": f"T1 par partial booking karein aur SL entry bhav par shift karein."
         }
 
-    # Trend Continuation with Extended Targets
     if not setup:
         if current_price >= oi_sup:
             trade_dir = "BUY"
@@ -251,9 +253,9 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
                 "idx": df.index[-1], "price_point": current_price, "accuracy": "88% Alignment"
             }
             prediction = {
-                "where": f"Support Band (₹{oi_sup:.1f}) ke upar GMMA continuous expansion me hai.",
-                "what_now": f"Breakout rally me initial scalp ₹{t1:.1f}, breakout target ₹{t2:.1f} aur extended trend target ₹{t3:.1f} hai.",
-                "trailing_rule": f"T1 touch hote hi Stop-Loss entry rate (₹{entry:.1f}) par shift karein."
+                "where": f"Support Band (₹{oi_sup:.1f}) ke upar GMMA continuous expanding.",
+                "what_now": f"Breakout rally me initial scalp ₹{t1:.1f}, major target ₹{t2:.1f} aur blast target ₹{t3:.1f} hai.",
+                "trailing_rule": f"T1 touch hote hi Stop-Loss entry rate (₹{entry:.1f}) par layein."
             }
         else:
             trade_dir = "SELL"
@@ -270,11 +272,10 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
             }
             prediction = {
                 "where": f"Support Band todkar downward supply expansion active.",
-                "what_now": f"Pehla support ₹{t1:.1f}, major institutional demand zone ₹{t2:.1f} aur runner ₹{t3:.1f} tak target open hai.",
-                "trailing_rule": f"T1 par 50% profit lock karein aur baaki run hone dein."
+                "what_now": f"Pehla support ₹{t1:.1f}, institutional demand zone ₹{t2:.1f} aur runner ₹{t3:.1f} hai.",
+                "trailing_rule": f"T1 par partial lock karein aur runner ride karein."
             }
 
-    # Strike Calculations
     strikes = {}
     if is_gas:
         base_step = round(current_price / 2.5) * 2.5
@@ -303,7 +304,7 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
 
     return setup, trap, prediction, strikes
 
-crude_data, gas_data = load_speed_data(interval_val, period_val)
+crude_data, gas_data = load_speed_data(interval_val, period_val, gas_manual_offset)
 
 # VOICE NOTIFICATION
 voice_alert_text = ""
@@ -312,7 +313,7 @@ if gas_data and gas_data.get('setup'):
     voice_alert_text = f"Radhe Radhe! Natural Gas Mini me {s['type']} setup bana hai. Target open up to ₹{s['t3']:.1f}."
 render_voice_engine(voice_alert_text)
 
-# --- 1. ANGEL ONE PRO PRE-ANALYSED CHART WITH EXTENDED TRAJECTORY ---
+# --- 1. ANGEL ONE PRO PRE-ANALYSED CHART WITH REAL MOVING DATA ---
 def render_angel_tools_preanalysed_chart(data, name):
     df = data['df'].copy()
     setup = data['setup']
@@ -432,7 +433,6 @@ def render_ai_forecast_chart(data, name):
 # 1. LIVE TERMINAL & LEVELS
 # ========================================================
 if nav_page == "🛢️ Live Terminal & Levels":
-    st.markdown(f"#### 🌐 Live Trading Session: `{session_status}`")
     t1, t2 = st.tabs(["🔥 Natural Gas Mini (MCX)", "🛢️ Crude Oil Mini (MCX)"])
 
     def show_terminal_tab(data, name, unit):
@@ -549,9 +549,9 @@ elif nav_page == "🧮 1 Lot Position & P&L Calculator":
     with c_a:
         asset_select = st.selectbox("Select Mini Commodity:", ["Natural Gas Mini (1 Lot = 250)", "Crude Oil Mini (1 Lot = 10)"])
         st.caption("🔒 Quantity locked to 1 Lot for Capital Protection.")
-        default_ent = 301.8 if "Natural Gas" in asset_select else 6250.0
-        default_stop = 300.0 if "Natural Gas" in asset_select else 6230.0
-        default_tgt = 307.0 if "Natural Gas" in asset_select else 6320.0
+        default_ent = 312.6 if "Natural Gas" in asset_select else 8708.0
+        default_stop = 310.8 if "Natural Gas" in asset_select else 8685.0
+        default_tgt = 318.0 if "Natural Gas" in asset_select else 8780.0
 
         ent = st.number_input("Entry Price (₹):", value=default_ent, step=0.1 if "Natural Gas" in asset_select else 1.0)
         stop = st.number_input("Stop-Loss Price (₹):", value=default_stop, step=0.1 if "Natural Gas" in asset_select else 1.0)
@@ -620,7 +620,7 @@ elif nav_page == "📑 OPEC, EIA & Global News Impact":
             t = item.title.lower()
 
             if "steady" in t or "holds" in t or "hold output" in t:
-                action_tag = "⚖️️ OPEC PRODUCTION STEADY (BULLISH SUPPORT)"
+                action_tag = "⚖️ OPEC PRODUCTION STEADY (BULLISH SUPPORT)"
                 impact_hindi = "OPEC+ ne utpadan nahi badhaya hai. Supply tight rahegi, iska matlab Crude Oil me downside safe hai aur dips par buying support milega."
                 trade_advice = "Mandi ke bade short trade avoid karein; support (OI Band/Pivot) par bounce trade pakdein."
             elif "cut" in t or "middle east" in t or "conflict" in t or "tighten" in t or "war" in t:
