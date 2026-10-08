@@ -6,21 +6,60 @@ import streamlit.components.v1 as components
 from datetime import datetime
 import pytz
 
-st.set_page_config(page_title="MCX Institutional Pro Terminal", page_icon="⛽", layout="wide")
+# ==============================================================================
+# SECTION 1: GLOBAL CONFIGURATION & THEME ENGINE
+# ==============================================================================
+st.set_page_config(
+    page_title="MCX Institutional Pro Terminal",
+    page_icon="⛽",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# --- 1. VOICE ALERT ENGINE ---
+# Custom High-Contrast Trading Terminal CSS
+st.markdown("""
+<style>
+    .main {
+        background-color: #0b0f19;
+    }
+    .metric-card {
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+    .stRadio > div {
+        background-color: #111827;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #1f2937;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 24px;
+        font-weight: 700;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ==============================================================================
+# SECTION 2: BROWSER NATIVE HINDI VOICE ENGINE (RADHE RADHE ALERT)
+# ==============================================================================
 def render_voice_engine(alert_msg=""):
     clean_text = alert_msg.replace("'", "").replace('"', "")
     html_code = f"""
-    <div style="background: #111827; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #374151;">
-        <span style="color: #38bdf8; font-size: 13px;">🔊 <b>Voice Alert Engine:</b> Active</span>
-        <button onclick="playRadheVoice('{clean_text}')" style="background: #059669; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">Test Voice 🔔</button>
+    <div style="background: #111827; padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #1f2937;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="height: 10px; width: 10px; background-color: #10b981; border-radius: 50%; display: inline-block;"></span>
+            <span style="color: #38bdf8; font-size: 13px; font-weight: 600;">VOICE ALERT SYSTEM: RADHE RADHE ENGINE ONLINE</span>
+        </div>
+        <button onclick="playRadheVoice('{clean_text}')" style="background: #0284c7; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">Test Voice Engine 🔔</button>
     </div>
     <script>
     function playRadheVoice(customText) {{
         if ('speechSynthesis' in window) {{
             window.speechSynthesis.cancel();
-            var text = customText ? customText : 'Radhe Radhe! MCX Terminal Live Connected.';
+            var text = customText ? customText : 'Radhe Radhe! MCX Institutional Mini Terminal Ready.';
             var msg = new SpeechSynthesisUtterance(text);
             msg.lang = 'hi-IN';
             msg.rate = 0.95;
@@ -30,50 +69,36 @@ def render_voice_engine(alert_msg=""):
     }}
     var triggerText = '{clean_text}';
     if (triggerText && triggerText.length > 5) {{
-        setTimeout(function() {{ playRadheVoice(triggerText); }}, 1000);
+        setTimeout(function() {{ playRadheVoice(triggerText); }}, 1200);
     }}
     </script>
     """
-    components.html(html_code, height=50)
+    components.html(html_code, height=55)
 
-# --- 2. TRADINGVIEW DIRECT MCX EMBED WIDGET ---
-def render_tv_widget(symbol_tv, height=520):
-    tv_html = f"""
-    <!-- TradingView Widget BEGIN -->
+# ==============================================================================
+# SECTION 3: TRADINGVIEW REAL-TIME EXCHANGE FEED WIDGET
+# ==============================================================================
+def render_real_tradingview_feed(symbol, height=600):
+    tv_code = f"""
     <div class="tradingview-widget-container" style="height:{height}px;width:100%">
-      <div id="tradingview_{symbol_tv.replace(':', '_')}" style="height:calc(100% - 32px);width:100%"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-      <script type="text/javascript">
-      new TradingView.widget(
-      {{
-        "autosize": true,
-        "symbol": "{symbol_tv}",
-        "interval": "15",
-        "timezone": "Asia/Kolkata",
-        "theme": "dark",
-        "style": "1",
-        "locale": "in",
-        "toolbar_bg": "#f1f3f6",
-        "enable_publishing": false,
-        "hide_side_toolbar": false,
-        "allow_symbol_change": true,
-        "container_id": "tradingview_{symbol_tv.replace(':', '_')}"
-      }}
-      );
-      </script>
+      <iframe src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol={symbol}&interval=15&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=%5B%22MASimple%40tv-basicstudies%22%2C%22MAExp%40tv-basicstudies%22%2C%22VWAP%40tv-basicstudies%22%5D&theme=dark&style=1&timezone=Asia%2FKolkata&studies_overrides=%7B%7D&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=in&utm_source=tradingview.com" 
+              style="width: 100%; height: 100%; margin: 0 !important; padding: 0 !important;" 
+              frameborder="0" allowtransparency="true" scrolling="no" allowfullscreen></iframe>
     </div>
-    <!-- TradingView Widget END -->
     """
-    components.html(tv_html, height=height)
+    components.html(tv_code, height=height)
 
-# --- TOP NAVIGATION WORKSPACES ---
-st.markdown("## ⛽ MCX Pro: Real-Time Verified Terminal")
+# ==============================================================================
+# SECTION 4: NAVIGATION & WORKSPACES ARCHITECTURE
+# ==============================================================================
+st.markdown("## ⛽ MCX Pro: Institutional Multi-Tool Terminal")
+
 nav_page = st.radio(
-    "NAVIGATION WORKSPACES:",
+    "ACTIVE WORKSPACES:",
     [
-        "🛢️ Live Terminal & Levels",
-        "📊 Angel One Pro Chart (Direct MCX Feed)",
-        "🎯 AI Predictive Forecast Chart",
+        "🛢️ Live Terminal & Real Exchange Feed",
+        "📊 Angel One Complete Indicator Suite",
+        "🎯 AI Full Swing Forecast Chart",
         "⚡ Final Decision (1 Lot Mini)",
         "🧮 1 Lot Position & P&L Calculator",
         "📓 My Discipline Journal",
@@ -87,19 +112,22 @@ st.markdown("---")
 ist = pytz.timezone("Asia/Kolkata")
 now_ist = datetime.now(ist)
 
+# Real Trading Session Mechanics
 curr_time_dec = now_ist.hour + (now_ist.minute / 60.0)
 if 11.0 <= curr_time_dec < 13.5:
-    session_status = "🟡 DEAD ZONE (Sideways - Avoid Buying Naked OTM)"
+    session_status = "🟡 DEAD ZONE (Low Volume Rangebound - Premium Theta Decay)"
 elif 14.5 <= curr_time_dec < 17.5:
-    session_status = "🔵 LONDON SESSION (Trend Setting Initial Move)"
+    session_status = "🔵 LONDON SESSION (Initial Trend Setting Movement)"
 elif 18.5 <= curr_time_dec <= 23.5:
-    session_status = "🔥 US WALL STREET BLAST (High Liquidity & Fast Moves)"
+    session_status = "🔥 US WALL STREET BLAST (High Liquidity & Explosive Expansion)"
 else:
-    session_status = "⚪ ASIAN / OFF-HOURS (Normal Consolidation)"
+    session_status = "⚪ ASIAN / OFF-HOURS (Base Consolidation)"
 
-# --- TIMEFRAME SELECTOR ---
-col_tf, col_calib = st.columns([2, 2])
-with col_tf:
+# ==============================================================================
+# SECTION 5: TIMEFRAME SELECTOR & CONTROLS
+# ==============================================================================
+col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([2, 1, 1])
+with col_ctrl1:
     tf_choice = st.selectbox(
         "⏱️ Timeframe Analysis:",
         [
@@ -110,8 +138,10 @@ with col_tf:
             "1 Week (Weekly Macro Outlook)"
         ]
     )
-with col_calib:
-    gas_manual_offset = st.number_input("🎯 Natural Gas Fine Tuning (₹):", value=0.0, step=0.5, help="Broker rate ke sath exact alignment ke liye.")
+with col_ctrl2:
+    active_contract = st.selectbox("Contract Type:", ["Natural Gas Mini", "Crude Oil Mini"])
+with col_ctrl3:
+    rate_adjust = st.number_input("Rate Offset (₹):", value=0.0, step=0.5, help="Broker tick se synchronize karne ke liye.")
 
 tf_map = {
     "5 Minute (Fast Scalping)": ("5m", "3d"),
@@ -122,43 +152,55 @@ tf_map = {
 }
 interval_val, period_val = tf_map[tf_choice]
 
-# --- ROBUST ENGINE WITH ACCURATE PRICE CALIBRATION ---
-@st.cache_data(ttl=50, show_spinner=False)
-def load_speed_data(interv, per, manual_offset):
+# ==============================================================================
+# SECTION 6: INSTITUTIONAL QUANT ENGINE (CALCULATIONS & INDICATORS)
+# ==============================================================================
+@st.cache_data(ttl=45, show_spinner=False)
+def calculate_quant_analytics(interv, per, offset):
     try:
         t_crude = yf.Ticker("CL=F")
         t_gas = yf.Ticker("NG=F")
-        df_c = t_crude.history(period=per, interval=interv)
-        df_g = t_gas.history(period=per, interval=interv)
+        df_c_raw = t_crude.history(period=per, interval=interv)
+        df_g_raw = t_gas.history(period=per, interval=interv)
 
-        def process_asset(df_in, is_gas=False):
+        def process_quant_asset(df_in, is_gas=False):
             if df_in is None or len(df_in) < 4:
                 return None
             df = df_in.dropna().copy()
 
             if is_gas:
-                # Active Oct Mini mapping (~312.60 range)
-                mult = 99.5
-                df['C_INR'] = (df['Close'] * mult) + manual_offset
-                df['O_INR'] = (df['Open'] * mult) + manual_offset
-                df['H_INR'] = (df['High'] * mult) + manual_offset
-                df['L_INR'] = (df['Low'] * mult) + manual_offset
+                multiplier = 99.5
+                df['C_INR'] = (df['Close'] * multiplier) + offset
+                df['O_INR'] = (df['Open'] * multiplier) + offset
+                df['H_INR'] = (df['High'] * multiplier) + offset
+                df['L_INR'] = (df['Low'] * multiplier) + offset
             else:
-                # Active Oct Crude Mini mapping (~8,708 range)
-                mult = 117.5
-                df['C_INR'] = df['Close'] * mult
-                df['O_INR'] = df['Open'] * mult
-                df['H_INR'] = df['High'] * mult
-                df['L_INR'] = df['Low'] * mult
+                multiplier = 117.5
+                df['C_INR'] = df['Close'] * multiplier
+                df['O_INR'] = df['Open'] * multiplier
+                df['H_INR'] = df['High'] * multiplier
+                df['L_INR'] = df['Low'] * multiplier
 
+            # Standard Indicators
             df['SMA9'] = df['C_INR'].rolling(window=min(9, len(df)), min_periods=1).mean()
             df['MA50'] = df['C_INR'].rolling(window=min(50, len(df)), min_periods=1).mean()
+
+            # Complete GMMA Ribbon Cluster
             df['GMMA3'] = df['C_INR'].ewm(span=3, adjust=False).mean()
+            df['GMMA5'] = df['C_INR'].ewm(span=5, adjust=False).mean()
             df['GMMA8'] = df['C_INR'].ewm(span=8, adjust=False).mean()
+            df['GMMA10'] = df['C_INR'].ewm(span=10, adjust=False).mean()
+            df['GMMA12'] = df['C_INR'].ewm(span=12, adjust=False).mean()
             df['GMMA15'] = df['C_INR'].ewm(span=15, adjust=False).mean()
+
             df['GMMA30'] = df['C_INR'].ewm(span=30, adjust=False).mean()
+            df['GMMA35'] = df['C_INR'].ewm(span=35, adjust=False).mean()
+            df['GMMA40'] = df['C_INR'].ewm(span=40, adjust=False).mean()
             df['GMMA45'] = df['C_INR'].ewm(span=45, adjust=False).mean()
+            df['GMMA50'] = df['C_INR'].ewm(span=50, adjust=False).mean()
             df['GMMA60'] = df['C_INR'].ewm(span=60, adjust=False).mean()
+
+            # Institutional Volume-Weighted Proxy
             df['TYP'] = (df['H_INR'] + df['L_INR'] + df['C_INR']) / 3
             df['VWAP'] = df['TYP'].rolling(window=min(20, len(df)), min_periods=1).mean()
 
@@ -168,6 +210,7 @@ def load_speed_data(interv, per, manual_offset):
             prev_price = prev['C_INR']
             change_pct = ((price - prev_price) / prev_price) * 100
 
+            # Pivots & Level Calculations
             h_prev = df['H_INR'].iloc[-2]
             l_prev = df['L_INR'].iloc[-2]
             c_prev = prev['C_INR']
@@ -182,9 +225,12 @@ def load_speed_data(interv, per, manual_offset):
 
             oi_res = round((price + 1.5) / 2.5) * 2.5 if is_gas else round((price + 35) / 50) * 50
             oi_sup = round((price - 1.5) / 2.5) * 2.5 if is_gas else round((price - 35) / 50) * 50
+
             trend = "BULLISH (Tezi)" if price > curr['SMA9'] else "BEARISH (Mandi)"
 
-            setup, trap, prediction, strikes = calc_mini_mechanics(df, price, oi_res, oi_sup, r1, r2, s1, s2, is_gas)
+            setup, trap, prediction, strikes = compute_institutional_mechanics(
+                df, price, oi_res, oi_sup, r1, r2, s1, s2, is_gas
+            )
 
             return {
                 "price": price, "change": change_pct, "trend": trend,
@@ -196,13 +242,13 @@ def load_speed_data(interv, per, manual_offset):
                 "strikes": strikes, "is_gas": is_gas, "df": df.tail(24)
             }
 
-        crude = process_asset(df_c, is_gas=False)
-        gas = process_asset(df_g, is_gas=True)
+        crude = process_quant_asset(df_c_raw, is_gas=False)
+        gas = process_quant_asset(df_g_raw, is_gas=True)
         return crude, gas
     except Exception:
         return None, None
 
-def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_gas=False):
+def compute_institutional_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_gas=False):
     curr = df.iloc[-1]
     prev = df.iloc[-2]
     c_open, c_close, c_high, c_low = curr['O_INR'], curr['C_INR'], curr['H_INR'], curr['L_INR']
@@ -218,23 +264,25 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
     prediction = None
     trade_dir = "BUY"
 
+    # Institutional Trap Detection
     if c_high > prev['H_INR'] and c_close < prev['H_INR'] and c_close < c_open:
         trap = {
             "title": "🪤 BULL TRAP (Buyers Trapped)",
             "action": "Put Side Entry",
-            "reason": f"High (₹{prev['H_INR']:.1f}) break karke dumping hui.",
-            "next_move": f"Support band ₹{oi_sup:.1f} aur deeper level ₹{s1:.1f} tak decline expect karein."
+            "reason": f"High (₹{prev['H_INR']:.1f}) todkar fake wick dumping hui.",
+            "next_move": f"Support band ₹{oi_sup:.1f} aur deeper level ₹{s1:.1f} tak decline expected hai."
         }
         trade_dir = "SELL"
     elif c_low < prev['L_INR'] and c_close > prev['L_INR'] and c_close > c_open:
         trap = {
             "title": "🪤 BEAR TRAP (Shorts Trapped)",
             "action": "Call Side Entry",
-            "reason": f"Low (₹{prev['L_INR']:.1f}) break karne ke baad aggressive recovery aayi.",
-            "next_move": f"Resistance band ₹{oi_res:.1f} aur higher target ₹{r1:.1f} tak bounce banega."
+            "reason": f"Low (₹{prev['L_INR']:.1f}) todne ke baad aggressive buying wapas aayi.",
+            "next_move": f"Resistance band ₹{oi_res:.1f} aur higher target ₹{r1:.1f} tak bounce aayega."
         }
         trade_dir = "BUY"
 
+    # Full Swing Reversal Pattern Detection
     if lower_wick > (1.7 * body) and upper_wick < (0.6 * body) and body > 0:
         entry = c_high + buffer_val
         sl = c_low - buffer_val
@@ -244,14 +292,14 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
         t3 = max(entry + (9.0 if is_gas else 90.0), r2)
         trade_dir = "BUY"
         setup = {
-            "name": "🔨 Institutional Hammer (Full Swing)", "type": "BUY",
+            "name": "🔨 Institutional Hammer (Full Swing Expansion)", "type": "BUY",
             "entry": entry, "sl": sl, "t1": t1, "t2": t2, "t3": t3,
             "idx": df.index[-1], "price_point": c_low, "accuracy": "93% Confluence"
         }
         prediction = {
-            "where": f"Support Band (₹{oi_sup:.1f}) se strong buying bounce trigger hua.",
-            "what_now": f"T1 (₹{t1:.1f}) ke baad price Major Swing Target 2 (₹{t2:.1f}) aur Runner (₹{t3:.1f}) tak ja sakti hai.",
-            "trailing_rule": f"T1 touch hote hi Stop-Loss cost-to-cost (₹{entry:.1f}) lock karein."
+            "where": f"Angel Support Band (₹{oi_sup:.1f}) se strong buying bounce trigger hua.",
+            "what_now": f"T1 (₹{t1:.1f}) ke baad price Major Swing Target 2 (₹{t2:.1f}) aur Runner (₹{t3:.1f}) tak ja sakta hai.",
+            "trailing_rule": f"T1 aate hi Stop-Loss cost-to-cost (₹{entry:.1f}) lock karein aur runner ride karein."
         }
     elif upper_wick > (1.7 * body) and lower_wick < (0.6 * body) and body > 0:
         entry = c_low - buffer_val
@@ -259,19 +307,20 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
         risk = max(min_risk, min(sl - entry, 2.5 if is_gas else 25.0))
         t1 = entry - (2.5 if is_gas else 25.0)
         t2 = min(entry - (5.5 if is_gas else 55.0), s1)
-        t3 = min(entry - (9.0 if is_gas else 90.0), s2)
+        t3 = min(entry - (8.5 if is_gas else 85.0), s2)
         trade_dir = "SELL"
         setup = {
-            "name": "🌠 Institutional Shooting Star (Full Swing)", "type": "SELL",
+            "name": "🌠 Institutional Shooting Star (Full Swing Breakdown)", "type": "SELL",
             "entry": entry, "sl": sl, "t1": t1, "t2": t2, "t3": t3,
             "idx": df.index[-1], "price_point": c_high, "accuracy": "91% Confluence"
         }
         prediction = {
-            "where": f"Resistance Band (₹{oi_res:.1f}) se institutional dumping start hui.",
+            "where": f"Angel Resistance Band (₹{oi_res:.1f}) se institutional dumping start hui.",
             "what_now": f"T1 (₹{t1:.1f}) hit hone ke baad next crash level ₹{t2:.1f} aur Runner ₹{t3:.1f} open hoga.",
-            "trailing_rule": f"T1 par partial lock karein aur SL entry rate par shift karein."
+            "trailing_rule": f"T1 par partial booking karein aur SL entry bhav par shift karein."
         }
 
+    # Trend Fallback Mechanics
     if not setup:
         if current_price >= oi_sup:
             trade_dir = "BUY"
@@ -282,14 +331,14 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
             t2 = max(entry + (5.5 if is_gas else 55.0), r1)
             t3 = max(entry + (9.0 if is_gas else 90.0), r2)
             setup = {
-                "name": "📈 GMMA Ribbon Expansion (Big Trend)", "type": "BUY",
+                "name": "📈 GMMA Ribbon Expansion (Big Trend Continuation)", "type": "BUY",
                 "entry": entry, "sl": sl, "t1": t1, "t2": t2, "t3": t3,
                 "idx": df.index[-1], "price_point": current_price, "accuracy": "88% Alignment"
             }
             prediction = {
                 "where": f"Support Band (₹{oi_sup:.1f}) ke upar GMMA continuous expanding.",
                 "what_now": f"Breakout rally me T1: ₹{t1:.1f}, Major Swing: ₹{t2:.1f} aur Runner: ₹{t3:.1f} open hai.",
-                "trailing_rule": f"T1 touch hote hi Stop-Loss entry rate (₹{entry:.1f}) par shift karein."
+                "trailing_rule": f"T1 touch hote hi Stop-Loss entry rate (₹{entry:.1f}) par layein."
             }
         else:
             trade_dir = "SELL"
@@ -300,7 +349,7 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
             t2 = min(entry - (5.5 if is_gas else 55.0), s1)
             t3 = min(entry - (9.0 if is_gas else 90.0), s2)
             setup = {
-                "name": "📉 Breakdown Momentum (Big Fall)", "type": "SELL",
+                "name": "📉 Breakdown Momentum (Big Downside Expansion)", "type": "SELL",
                 "entry": entry, "sl": sl, "t1": t1, "t2": t2, "t3": t3,
                 "idx": df.index[-1], "price_point": current_price, "accuracy": "86% Strength"
             }
@@ -310,6 +359,7 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
                 "trailing_rule": f"T1 par partial lock karein aur runner ride karein."
             }
 
+    # Strike Logic
     strikes = {}
     if is_gas:
         base_step = round(current_price / 2.5) * 2.5
@@ -338,17 +388,75 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
 
     return setup, trap, prediction, strikes
 
-crude_data, gas_data = load_speed_data(interval_val, period_val, gas_manual_offset)
+crude_data, gas_data = calculate_quant_analytics(interval_val, period_val, rate_adjust)
 
-# VOICE NOTIFICATION
+# Voice Trigger Integration
 voice_alert_text = ""
-if gas_data and gas_data.get('setup'):
-    s = gas_data['setup']
-    voice_alert_text = f"Radhe Radhe! Natural Gas Mini me {s['type']} setup bana hai. T1 ₹{s['t1']:.1f} aur T2 ₹{s['t2']:.1f}."
+selected_data = gas_data if active_contract == "Natural Gas Mini" else crude_data
+if selected_data and selected_data.get('setup'):
+    s = selected_data['setup']
+    voice_alert_text = f"Radhe Radhe! {active_contract} verified setup trigger hua hai. Target open up to ₹{s['t3']:.1f}."
 render_voice_engine(voice_alert_text)
 
-# --- AI PREDICTIVE FORECAST CHART BUILDER ---
-def render_ai_forecast_chart(data, name):
+# ==============================================================================
+# SECTION 7: PLOTLY CHART VISUALIZATION MODULES
+# ==============================================================================
+def render_complete_angel_chart(data, name):
+    df = data['df'].copy()
+    setup = data['setup']
+    zoom_df = df.tail(18)
+    fig = go.Figure()
+
+    fig.add_trace(go.Candlestick(
+        x=zoom_df.index, open=zoom_df['O_INR'], high=zoom_df['H_INR'], low=zoom_df['L_INR'], close=zoom_df['C_INR'],
+        name="Candles", increasing_line_color='#22c55e', decreasing_line_color='#ef4444'
+    ))
+
+    # GMMA Short-Term Ribbons
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA3'], mode='lines', name='GMMA 3', line=dict(color='#38bdf8', width=1.0)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA5'], mode='lines', name='GMMA 5', line=dict(color='#60a5fa', width=1.0)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA8'], mode='lines', name='GMMA 8', line=dict(color='#818cf8', width=1.0)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA10'], mode='lines', name='GMMA 10', line=dict(color='#a5b4fc', width=1.0)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA12'], mode='lines', name='GMMA 12', line=dict(color='#c7d2fe', width=1.0)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA15'], mode='lines', name='GMMA 15', line=dict(color='#e0e7ff', width=1.2)))
+
+    # GMMA Long-Term Ribbons
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA30'], mode='lines', name='GMMA 30', line=dict(color='#d97706', width=1.0)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA35'], mode='lines', name='GMMA 35', line=dict(color='#b45309', width=1.0)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA40'], mode='lines', name='GMMA 40', line=dict(color='#92400e', width=1.0)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA45'], mode='lines', name='GMMA 45', line=dict(color='#78350f', width=1.2)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA50'], mode='lines', name='GMMA 50', line=dict(color='#451a03', width=1.2)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA60'], mode='lines', name='GMMA 60', line=dict(color='#292524', width=1.5)))
+
+    # Key Level Anchors
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['MA50'], mode='lines', name='MA 50', line=dict(color='#06b6d4', width=2)))
+    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['VWAP'], mode='lines', name='VWAP', line=dict(color='#c084fc', width=1.5, dash='dot')))
+
+    fig.add_hline(y=data['oi_res'], line_width=3, line_color="#eab308", annotation_text=f"🟡 OI Call Resistance ₹{data['oi_res']:.1f}", annotation_position="top right")
+    fig.add_hline(y=data['oi_sup'], line_width=3, line_color="#10b981", annotation_text=f"🟢 OI Put Support ₹{data['oi_sup']:.1f}", annotation_position="bottom right")
+
+    if setup:
+        last_t = zoom_df.index[-1]
+        next_t = last_t + (last_t - zoom_df.index[-2])
+        proj_color = "#22c55e" if setup['type'] == "BUY" else "#ef4444"
+
+        fig.add_trace(go.Scatter(
+            x=[last_t, next_t], y=[data['price'], setup['t2']],
+            mode="lines+markers",
+            line=dict(color=proj_color, width=3, dash='dashdot'),
+            marker=dict(size=[0, 10], symbol="arrow-bar-up" if setup['type'] == "BUY" else "arrow-bar-down"),
+            name="Max Swing Path"
+        ))
+
+    fig.update_layout(
+        title=dict(text=f"{name} Angel Tools: Complete Indicator Suite", x=0.02, y=0.98),
+        yaxis_title="Price (₹)", xaxis_rangeslider_visible=False, height=540,
+        margin=dict(l=10, r=10, t=55, b=10), template="plotly_dark",
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0, font=dict(size=10))
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+def render_full_horizon_ai_chart(data, name):
     df = data['df'].copy()
     setup = data['setup']
     strikes = data['strikes']
@@ -357,13 +465,13 @@ def render_ai_forecast_chart(data, name):
         card_color = "#134e4a" if setup['type'] == "BUY" else "#7f1d1d"
         st.markdown(f"""
         <div style="background-color: {card_color}; padding: 14px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ffffff33;">
-            <h3 style="margin: 0; color: white;">🎯 AI FULL SWING TARGETS: {setup['name']}</h3>
+            <h3 style="margin: 0; color: white;">🎯 AI FULL HORIZON SWING TARGETS: {setup['name']}</h3>
             <p style="margin: 3px 0; color: #fde047; font-size: 14px;"><b>Signal:</b> {setup['type']} | <b>Setup Accuracy:</b> {setup['accuracy']}</p>
             <div style="display: flex; justify-content: space-between; margin-top: 8px; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 6px;">
                 <span style="color: #38bdf8; font-size: 16px;"><b>Entry:</b> ₹{setup['entry']:.1f}</span>
                 <span style="color: #f87171; font-size: 16px;"><b>SL:</b> ₹{setup['sl']:.1f}</span>
                 <span style="color: #4ade80; font-size: 16px;"><b>T1 (Scalp):</b> ₹{setup['t1']:.1f}</span>
-                <span style="color: #a7f3d0; font-size: 16px;"><b>T2 (Swing):</b> ₹{setup['t2']:.1f}</span>
+                <span style="color: #a7f3d0; font-size: 16px;"><b>T2 (Major Swing):</b> ₹{setup['t2']:.1f}</span>
                 <span style="color: #fef08a; font-size: 16px;"><b>T3 (Blast):</b> ₹{setup['t3']:.1f}</span>
             </div>
             <p style="margin-top: 8px; margin-bottom: 0; color: #f1f5f9; font-size: 13px;">
@@ -407,8 +515,8 @@ def render_ai_forecast_chart(data, name):
         fig.add_hline(y=setup['entry'], line_dash="dot", line_color="#38bdf8", annotation_text=f"Entry: ₹{setup['entry']:.1f}")
         fig.add_hline(y=setup['sl'], line_dash="dash", line_color="#ef4444", annotation_text=f"SL: ₹{setup['sl']:.1f}")
         fig.add_hline(y=setup['t1'], line_dash="dash", line_color="#4ade80", annotation_text=f"T1: ₹{setup['t1']:.1f}")
-        fig.add_hline(y=setup['t2'], line_dash="dash", line_color="#22c55e", annotation_text=f"T2: ₹{setup['t2']:.1f}")
-        fig.add_hline(y=setup['t3'], line_dash="dash", line_color="#facc15", annotation_text=f"T3: ₹{setup['t3']:.1f}")
+        fig.add_hline(y=setup['t2'], line_dash="dash", line_color="#22c55e", annotation_text=f"T2 (Major Swing): ₹{setup['t2']:.1f}")
+        fig.add_hline(y=setup['t3'], line_dash="dash", line_color="#facc15", annotation_text=f"T3 (Max Blast): ₹{setup['t3']:.1f}")
 
     fig.update_layout(
         title=dict(text=f"{name} AI Full Horizon Forecast Chart", x=0.02, y=0.98),
@@ -418,13 +526,16 @@ def render_ai_forecast_chart(data, name):
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# ========================================================
-# 1. LIVE TERMINAL & LEVELS
-# ========================================================
-if nav_page == "🛢️ Live Terminal & Levels":
-    t1, t2 = st.tabs(["🔥 Natural Gas Mini (MCX)", "🛢️ Crude Oil Mini (MCX)"])
+# ==============================================================================
+# SECTION 8: WORKSPACES DISPLAY LOGIC
+# ==============================================================================
 
-    def show_terminal_tab(data, name, unit):
+# --- WORKSPACE 1: LIVE TERMINAL & REAL EXCHANGE FEED ---
+if nav_page == "🛢️ Live Terminal & Levels":
+    st.markdown(f"#### 🌐 Live Trading Session: `{session_status}`")
+    t1, t2 = st.tabs(["🔥 Natural Gas Mini (MCX Feed)", "🛢️ Crude Oil Mini (MCX Feed)"])
+
+    def show_terminal_tab(data, name, unit, tv_sym):
         if not data:
             st.warning("⚡ Data sync ho raha hai... Please wait.")
             return
@@ -438,49 +549,47 @@ if nav_page == "🛢️ Live Terminal & Levels":
         st.markdown("#### 📍 Support, CPR & Resistance (₹ me)")
         l1, l2, l3, l4, l5, l6, l7 = st.columns(7)
         l1.metric("R2", f"₹{data['r2']:.1f}")
-        l2.metric("R1", f"₹{data['r1']:.1f}")
-        l3.metric("TC", f"₹{data['tc']:.1f}")
-        l4.metric("Pivot", f"₹{data['pivot']:.1f}")
-        l5.metric("BC", f"₹{data['bc']:.1f}")
-        l6.metric("S1", f"₹{data['s1']:.1f}")
-        l7.metric("S2", f"₹{data['s2']:.1f}")
+        l1.metric("R1", f"₹{data['r1']:.1f}")
+        l1.metric("TC", f"₹{data['tc']:.1f}")
+        l1.metric("Pivot", f"₹{data['pivot']:.1f}")
+        l1.metric("BC", f"₹{data['bc']:.1f}")
+        l1.metric("S1", f"₹{data['s1']:.1f}")
+        l1.metric("S2", f"₹{data['s2']:.1f}")
+
+        st.markdown("---")
+        st.markdown(f"#### 📈 Real-Time Exchange Live Candles ({tv_sym})")
+        render_real_tradingview_feed(tv_sym, height=540)
 
     with t1:
-        show_terminal_tab(gas_data, "Natural Gas Mini", "₹/mmBtu")
+        show_terminal_tab(gas_data, "Natural Gas Mini", "₹/mmBtu", "MCX:NATURALGAS1!")
     with t2:
-        show_terminal_tab(crude_data, "Crude Oil Mini", "₹/bbl")
+        show_terminal_tab(crude_data, "Crude Oil Mini", "₹/bbl", "MCX:CRUDEOIL1!")
 
-# ========================================================
-# 2. PAGE: ANGEL ONE PRO CHART (DIRECT TRADINGVIEW MCX FEED)
-# ========================================================
-elif nav_page == "📊 Angel One Pro Chart (Direct MCX Feed)":
-    st.subheader("📊 Direct MCX Indian Exchange Live Feed (TradingView Powered)")
-    st.caption("Yeh exact wahi tick-by-tick real candle chart hai jo Angel One aur TradingView par live chalta hai:")
-
-    p1, p2 = st.tabs(["🔥 Natural Gas Mini (MCX:NATGASMINI1!)", "🛢️ Crude Oil Mini (MCX:CRUDEOILM1!)"])
+# --- WORKSPACE 2: ANGEL ONE PRO INDICATOR SUITE ---
+elif nav_page == "📊 Angel One Complete Indicator Suite":
+    st.subheader(f"📊 Angel One Indicators: Full GMMA Cluster, VWAP & Dual OI Bands ({tf_choice})")
+    p1, p2 = st.tabs(["🔥 Natural Gas Mini (Angel Suite)", "🛢️ Crude Oil Mini (Angel Suite)"])
     with p1:
-        render_tv_widget("MCX:NATGASMINI1!", height=560)
+        if gas_data: render_complete_angel_chart(gas_data, "Natural Gas Mini")
+        else: st.info("Loading Angel One Suite...")
     with p2:
-        render_tv_widget("MCX:CRUDEOILM1!", height=560)
+        if crude_data: render_complete_angel_chart(crude_data, "Crude Oil Mini")
+        else: st.info("Loading Angel One Suite...")
 
-# ========================================================
-# 3. PAGE: AI PREDICTIVE FORECAST CHART
-# ========================================================
-elif nav_page == "🎯 AI Predictive Forecast Chart":
+# --- WORKSPACE 3: AI FULL SWING FORECAST CHART ---
+elif nav_page == "🎯 AI Full Swing Forecast Chart":
     st.subheader(f"🎯 AI Multi-Stage Pattern Forecast (Scalp, Swing & Blast Targets) ({tf_choice})")
     f1, f2 = st.tabs(["🔥 Natural Gas Mini AI Forecast", "🛢️ Crude Oil Mini AI Forecast"])
     with f1:
-        if gas_data: render_ai_forecast_chart(gas_data, "Natural Gas Mini")
-        else: st.info("Loading forecast...")
+        if gas_data: render_full_horizon_ai_chart(gas_data, "Natural Gas Mini")
+        else: st.info("Loading AI Forecast...")
     with f2:
-        if crude_data: render_ai_forecast_chart(crude_data, "Crude Oil Mini")
-        else: st.info("Loading forecast...")
+        if crude_data: render_full_horizon_ai_chart(crude_data, "Crude Oil Mini")
+        else: st.info("Loading AI Forecast...")
 
-# ========================================================
-# 4. FINAL DECISION (1 LOT MINI)
-# ========================================================
+# --- WORKSPACE 4: FINAL DECISION (1 LOT MINI) ---
 elif nav_page == "⚡ Final Decision (1 Lot Mini)":
-    st.subheader("⚡ Aakhiri Faisla: 1 Lot Mini Execution Plan")
+    st.subheader(f"⚡ Aakhiri Faisla: 1 Lot Mini Execution Plan ({active_contract})")
     dec_tab1, dec_tab2 = st.tabs(["🔥 Natural Gas Mini Verdict", "🛢️ Crude Oil Mini Verdict"])
 
     def show_final_decision(data, asset_name):
@@ -533,24 +642,23 @@ elif nav_page == "⚡ Final Decision (1 Lot Mini)":
     with dec_tab2:
         show_final_decision(crude_data, "Crude Oil Mini")
 
-# ========================================================
-# 5. 1 LOT RISK CALCULATOR
-# ========================================================
+# --- WORKSPACE 5: 1 LOT POSITION & P&L CALCULATOR ---
 elif nav_page == "🧮 1 Lot Position & P&L Calculator":
-    st.subheader("🧮 1 Lot Mini Position Calculator")
+    st.subheader(f"🧮 1 Lot Mini Position Calculator ({active_contract})")
     c_a, c_b = st.columns(2)
+    selected_asset_data = gas_data if active_contract == "Natural Gas Mini" else crude_data
+
     with c_a:
-        asset_select = st.selectbox("Select Mini Commodity:", ["Natural Gas Mini (1 Lot = 250)", "Crude Oil Mini (1 Lot = 10)"])
         st.caption("🔒 Quantity locked to 1 Lot for Capital Protection.")
-        default_ent = 312.6 if "Natural Gas" in asset_select else 8708.0
-        default_stop = 310.8 if "Natural Gas" in asset_select else 8685.0
-        default_tgt = 318.0 if "Natural Gas" in asset_select else 8780.0
+        default_ent = selected_data['price'] if selected_data else (312.6 if active_contract == "Natural Gas Mini" else 8708.0)
+        default_stop = default_ent - (1.8 if active_contract == "Natural Gas Mini" else 20.0)
+        default_tgt = default_ent + (5.5 if active_contract == "Natural Gas Mini" else 55.0)
 
-        ent = st.number_input("Entry Price (₹):", value=default_ent, step=0.1 if "Natural Gas" in asset_select else 1.0)
-        stop = st.number_input("Stop-Loss Price (₹):", value=default_stop, step=0.1 if "Natural Gas" in asset_select else 1.0)
-        tgt = st.number_input("Target Price (₹):", value=default_tgt, step=0.1 if "Natural Gas" in asset_select else 1.0)
+        ent = st.number_input("Entry Price (₹):", value=default_ent, step=0.1 if active_contract == "Natural Gas Mini" else 1.0)
+        stop = st.number_input("Stop-Loss Price (₹):", value=default_stop, step=0.1 if active_contract == "Natural Gas Mini" else 1.0)
+        tgt = st.number_input("Target Price (₹):", value=default_tgt, step=0.1 if active_contract == "Natural Gas Mini" else 1.0)
 
-        lot_mult = 250 if "Natural Gas" in asset_select else 10
+        lot_mult = 250 if active_contract == "Natural Gas Mini" else 10
         pts_r = abs(ent - stop)
         pts_t = abs(tgt - ent)
 
@@ -562,9 +670,7 @@ elif nav_page == "🧮 1 Lot Position & P&L Calculator":
         st.metric("1 Lot Stop-Loss Risk:", f"-₹{tot_loss:.1f}")
         st.metric("1 Lot Target Gain:", f"+₹{tot_gain:.1f}")
 
-# ========================================================
-# 6. JOURNAL
-# ========================================================
+# --- WORKSPACE 6: DISCIPLINE JOURNAL ---
 elif nav_page == "📓 My Discipline Journal":
     st.subheader("📓 Daily Trading Discipline Journal")
     if "journal_entries" not in st.session_state:
@@ -597,35 +703,41 @@ elif nav_page == "📓 My Discipline Journal":
             st.markdown(f"**{trade['date']}** | {color} **₹{trade['pnl']}** | Asset: `{trade['asset']}` | Setup: `{trade['reason']}` | SL: `{trade['sl']}`")
             st.divider()
 
-# ========================================================
-# 7. OPEC, EIA & GLOBAL NEWS IMPACT
-# ========================================================
+# --- WORKSPACE 7: OPEC, EIA & GLOBAL NEWS IMPACT ---
 elif nav_page == "📑 OPEC, EIA & Global News Impact":
     st.subheader("📑 Live Global Headlines, OPEC Reports & Direct Market Action")
     st.caption("Har badi international khabar ka Crude aur Gas ke bhav par seedha asar:")
 
-    st.warning("⚠️ **EIA Natural Gas Storage Event:** Har Thursday Shaam Theek 8:00 PM IST par data aata hai.")
+    st.warning("⚠️ **EIA Natural Gas Storage Event:** Har Thursday (Guruwar) Shaam Theek 8:00 PM IST par data aata hai. Us time 5 minute naye trade avoid karein.")
 
     try:
         feed = feedparser.parse("https://feeds.finance.yahoo.com/rss/2.0/headline?s=CL=F,NG=F&region=US&lang=en-US")
         if feed.entries:
-            for item in feed.entries[:6]:
+            for item in feed.entries[:8]:
                 t = item.title.lower()
-                if "steady" in t or "holds" in t:
+
+                if "steady" in t or "holds" in t or "hold output" in t:
                     action_tag = "⚖️ OPEC PRODUCTION STEADY (BULLISH SUPPORT)"
-                    impact_hindi = "OPEC+ ne utpadan nahi badhaya hai. Supply tight rahegi, dips par buying support milega."
-                elif "cut" in t or "war" in t or "conflict" in t:
-                    action_tag = "🚀 GEOPOLITICAL RISK (STRONG BULLISH)"
-                    impact_hindi = "War tension se delivery me rukawat. Seedhi rally expected hai."
-                elif "drop" in t or "fall" in t:
-                    action_tag = "🔴 OVERSUPPLY (STRONG BEARISH)"
-                    impact_hindi = "Demand kamzor hai, sellers dominant rahenge."
+                    impact_hindi = "OPEC+ ne utpadan nahi badhaya hai. Supply tight rahegi, iska matlab Crude Oil me downside safe hai aur dips par buying support milega."
+                    trade_advice = "Mandi ke bade short trade avoid karein; support (OI Band/Pivot) par bounce trade pakdein."
+                elif "cut" in t or "middle east" in t or "conflict" in t or "tighten" in t or "war" in t:
+                    action_tag = "🚀 GEOPOLITICAL / SUPPLY CRISIS (STRONG BULLISH)"
+                    impact_hindi = "War tension ya export routes tight hone se international oil/gas delivery me rukawat aayegi. Seedhi rally expected hai."
+                    trade_advice = "Breakout hote hi Call/Long side focus karein; strict trailing stop-loss maintain karein."
+                elif "drop" in t or "fall" in t or "increase output" in t or "glut" in t or "surplus" in t:
+                    action_tag = "🔴 OVERSUPPLY / WEAK DEMAND (STRONG BEARISH)"
+                    impact_hindi = "Market me maal zyada hai aur demand kamzor hai, jisse sellers dominant rahenge."
+                    trade_advice = "Har upar ke bounce par resistance zone se Put/Sell trade dhundein."
                 else:
-                    action_tag = "📊 REGULAR FLOW"
-                    impact_hindi = "Market technical levels (OI Band aur GMMA) follow karegi."
+                    action_tag = "📊 REGULAR MARKET MOVEMENT"
+                    impact_hindi = "Normal market news hai. Market technical levels (OI Band aur GMMA) ko follow karegi."
+                    trade_advice = "Sirf OI Band aur Trend Confirmation par trade lein."
 
                 st.markdown(f"#### 📰 {item.title}")
-                st.markdown(f"👉 **Verdict:** `{action_tag}` | 💡 {impact_hindi}")
+                st.markdown(f"👉 **Direct Market Verdict:** `{action_tag}`")
+                st.markdown(f"💡 **Bhav Par Seedha Asar:** {impact_hindi}")
+                st.info(f"🎯 **Trading Action Plan:** {trade_advice}")
+                st.caption(f"Published: {item.get('published', '')}")
                 st.divider()
     except Exception:
-        st.info("News live refresh ho rahi hai...")
+        st.info("News feeds live refresh ho rahe hain...")
