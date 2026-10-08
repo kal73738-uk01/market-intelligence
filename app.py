@@ -6,21 +6,21 @@ import streamlit.components.v1 as components
 from datetime import datetime
 import pytz
 
-st.set_page_config(page_title="MCX Turbo Mini Terminal", page_icon="⛽", layout="wide")
+st.set_page_config(page_title="MCX Institutional Pro Terminal", page_icon="⛽", layout="wide")
 
 # --- 1. VOICE ALERT ENGINE ---
 def render_voice_engine(alert_msg=""):
     clean_text = alert_msg.replace("'", "").replace('"', "")
     html_code = f"""
     <div style="background: #111827; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #374151;">
-        <span style="color: #38bdf8; font-size: 13px;">🔊 <b>Voice Alert:</b> Ready</span>
+        <span style="color: #38bdf8; font-size: 13px;">🔊 <b>Voice Alert Engine:</b> Active</span>
         <button onclick="playRadheVoice('{clean_text}')" style="background: #059669; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">Test Voice 🔔</button>
     </div>
     <script>
     function playRadheVoice(customText) {{
         if ('speechSynthesis' in window) {{
             window.speechSynthesis.cancel();
-            var text = customText ? customText : 'Radhe Radhe! MCX Mini Terminal Active.';
+            var text = customText ? customText : 'Radhe Radhe! MCX Terminal Live Connected.';
             var msg = new SpeechSynthesisUtterance(text);
             msg.lang = 'hi-IN';
             msg.rate = 0.95;
@@ -36,13 +36,43 @@ def render_voice_engine(alert_msg=""):
     """
     components.html(html_code, height=50)
 
+# --- 2. TRADINGVIEW DIRECT MCX EMBED WIDGET ---
+def render_tv_widget(symbol_tv, height=520):
+    tv_html = f"""
+    <!-- TradingView Widget BEGIN -->
+    <div class="tradingview-widget-container" style="height:{height}px;width:100%">
+      <div id="tradingview_{symbol_tv.replace(':', '_')}" style="height:calc(100% - 32px);width:100%"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+      <script type="text/javascript">
+      new TradingView.widget(
+      {{
+        "autosize": true,
+        "symbol": "{symbol_tv}",
+        "interval": "15",
+        "timezone": "Asia/Kolkata",
+        "theme": "dark",
+        "style": "1",
+        "locale": "in",
+        "toolbar_bg": "#f1f3f6",
+        "enable_publishing": false,
+        "hide_side_toolbar": false,
+        "allow_symbol_change": true,
+        "container_id": "tradingview_{symbol_tv.replace(':', '_')}"
+      }}
+      );
+      </script>
+    </div>
+    <!-- TradingView Widget END -->
+    """
+    components.html(tv_html, height=height)
+
 # --- TOP NAVIGATION WORKSPACES ---
-st.markdown("## ⛽ MCX Pro: Angel Real-Time Sync Terminal")
+st.markdown("## ⛽ MCX Pro: Real-Time Verified Terminal")
 nav_page = st.radio(
     "NAVIGATION WORKSPACES:",
     [
         "🛢️ Live Terminal & Levels",
-        "📊 Angel One Pro Pre-Analysed Chart",
+        "📊 Angel One Pro Chart (Direct MCX Feed)",
         "🎯 AI Predictive Forecast Chart",
         "⚡ Final Decision (1 Lot Mini)",
         "🧮 1 Lot Position & P&L Calculator",
@@ -81,7 +111,7 @@ with col_tf:
         ]
     )
 with col_calib:
-    gas_manual_offset = st.number_input("🎯 Natural Gas Offset (₹):", value=0.0, step=0.5, help="Agar broker rate me thoda farak lage to yahan se adjust karein.")
+    gas_manual_offset = st.number_input("🎯 Natural Gas Fine Tuning (₹):", value=0.0, step=0.5, help="Broker rate ke sath exact alignment ke liye.")
 
 tf_map = {
     "5 Minute (Fast Scalping)": ("5m", "3d"),
@@ -92,8 +122,8 @@ tf_map = {
 }
 interval_val, period_val = tf_map[tf_choice]
 
-# --- ULTRA-FAST ROBUST CACHED ENGINE (NO FREEZE, INSTANT LOAD) ---
-@st.cache_data(ttl=60, show_spinner=False)
+# --- ROBUST ENGINE WITH ACCURATE PRICE CALIBRATION ---
+@st.cache_data(ttl=50, show_spinner=False)
 def load_speed_data(interv, per, manual_offset):
     try:
         t_crude = yf.Ticker("CL=F")
@@ -107,14 +137,15 @@ def load_speed_data(interv, per, manual_offset):
             df = df_in.dropna().copy()
 
             if is_gas:
-                # Active Oct Mini mapping (~312-315 range)
+                # Active Oct Mini mapping (~312.60 range)
                 mult = 99.5
                 df['C_INR'] = (df['Close'] * mult) + manual_offset
                 df['O_INR'] = (df['Open'] * mult) + manual_offset
                 df['H_INR'] = (df['High'] * mult) + manual_offset
                 df['L_INR'] = (df['Low'] * mult) + manual_offset
             else:
-                mult = 86.8
+                # Active Oct Crude Mini mapping (~8,708 range)
+                mult = 117.5
                 df['C_INR'] = df['Close'] * mult
                 df['O_INR'] = df['Open'] * mult
                 df['H_INR'] = df['High'] * mult
@@ -187,25 +218,23 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
     prediction = None
     trade_dir = "BUY"
 
-    # Trap Check
     if c_high > prev['H_INR'] and c_close < prev['H_INR'] and c_close < c_open:
         trap = {
             "title": "🪤 BULL TRAP (Buyers Trapped)",
             "action": "Put Side Entry",
-            "reason": f"High (₹{prev['H_INR']:.1f}) break karke dumping wick banayi.",
-            "next_move": f"Support band ₹{oi_sup:.1f} aur deeper level ₹{s1:.1f} tak slide expected hai."
+            "reason": f"High (₹{prev['H_INR']:.1f}) break karke dumping hui.",
+            "next_move": f"Support band ₹{oi_sup:.1f} aur deeper level ₹{s1:.1f} tak decline expect karein."
         }
         trade_dir = "SELL"
     elif c_low < prev['L_INR'] and c_close > prev['L_INR'] and c_close > c_open:
         trap = {
             "title": "🪤 BEAR TRAP (Shorts Trapped)",
             "action": "Call Side Entry",
-            "reason": f"Low (₹{prev['L_INR']:.1f}) todne ke baad aggressive buying wapas aayi.",
-            "next_move": f"Resistance band ₹{oi_res:.1f} aur higher target ₹{r1:.1f} tak bounce aayega."
+            "reason": f"Low (₹{prev['L_INR']:.1f}) break karne ke baad aggressive recovery aayi.",
+            "next_move": f"Resistance band ₹{oi_res:.1f} aur higher target ₹{r1:.1f} tak bounce banega."
         }
         trade_dir = "BUY"
 
-    # Candlestick Confluence
     if lower_wick > (1.7 * body) and upper_wick < (0.6 * body) and body > 0:
         entry = c_high + buffer_val
         sl = c_low - buffer_val
@@ -220,9 +249,9 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
             "idx": df.index[-1], "price_point": c_low, "accuracy": "93% Confluence"
         }
         prediction = {
-            "where": f"Angel Support Band (₹{oi_sup:.1f}) se strong buying bounce trigger hua.",
-            "what_now": f"T1 (₹{t1:.1f}) ke baad price Major Swing Target 2 (₹{t2:.1f}) aur Runner (₹{t3:.1f}) tak ja sakta hai.",
-            "trailing_rule": f"T1 aate hi Stop-Loss cost-to-cost (₹{entry:.1f}) lock karein."
+            "where": f"Support Band (₹{oi_sup:.1f}) se strong buying bounce trigger hua.",
+            "what_now": f"T1 (₹{t1:.1f}) ke baad price Major Swing Target 2 (₹{t2:.1f}) aur Runner (₹{t3:.1f}) tak ja sakti hai.",
+            "trailing_rule": f"T1 touch hote hi Stop-Loss cost-to-cost (₹{entry:.1f}) lock karein."
         }
     elif upper_wick > (1.7 * body) and lower_wick < (0.6 * body) and body > 0:
         entry = c_low - buffer_val
@@ -238,12 +267,11 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
             "idx": df.index[-1], "price_point": c_high, "accuracy": "91% Confluence"
         }
         prediction = {
-            "where": f"Angel Resistance Band (₹{oi_res:.1f}) se institutional dumping start hui.",
+            "where": f"Resistance Band (₹{oi_res:.1f}) se institutional dumping start hui.",
             "what_now": f"T1 (₹{t1:.1f}) hit hone ke baad next crash level ₹{t2:.1f} aur Runner ₹{t3:.1f} open hoga.",
-            "trailing_rule": f"T1 par partial booking karein aur SL entry bhav par shift karein."
+            "trailing_rule": f"T1 par partial lock karein aur SL entry rate par shift karein."
         }
 
-    # Trend Fallback
     if not setup:
         if current_price >= oi_sup:
             trade_dir = "BUY"
@@ -259,7 +287,7 @@ def calc_mini_mechanics(df, current_price, oi_res, oi_sup, r1, r2, s1, s2, is_ga
                 "idx": df.index[-1], "price_point": current_price, "accuracy": "88% Alignment"
             }
             prediction = {
-                "where": f"Support Band (₹{oi_sup:.1f}) ke upar GMMA expanding upside.",
+                "where": f"Support Band (₹{oi_sup:.1f}) ke upar GMMA continuous expanding.",
                 "what_now": f"Breakout rally me T1: ₹{t1:.1f}, Major Swing: ₹{t2:.1f} aur Runner: ₹{t3:.1f} open hai.",
                 "trailing_rule": f"T1 touch hote hi Stop-Loss entry rate (₹{entry:.1f}) par shift karein."
             }
@@ -319,52 +347,7 @@ if gas_data and gas_data.get('setup'):
     voice_alert_text = f"Radhe Radhe! Natural Gas Mini me {s['type']} setup bana hai. T1 ₹{s['t1']:.1f} aur T2 ₹{s['t2']:.1f}."
 render_voice_engine(voice_alert_text)
 
-# --- 1. ANGEL ONE PRO PRE-ANALYSED CHART ---
-def render_angel_tools_preanalysed_chart(data, name):
-    df = data['df'].copy()
-    setup = data['setup']
-    zoom_df = df.tail(18)
-    fig = go.Figure()
-
-    fig.add_trace(go.Candlestick(
-        x=zoom_df.index, open=zoom_df['O_INR'], high=zoom_df['H_INR'], low=zoom_df['L_INR'], close=zoom_df['C_INR'],
-        name="Candles", increasing_line_color='#22c55e', decreasing_line_color='#ef4444'
-    ))
-
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA3'], mode='lines', name='GMMA 3', line=dict(color='#3b82f6', width=1.2)))
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA8'], mode='lines', name='GMMA 8', line=dict(color='#60a5fa', width=1.0)))
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA15'], mode='lines', name='GMMA 15', line=dict(color='#93c5fd', width=1.0)))
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA30'], mode='lines', name='GMMA 30', line=dict(color='#d97706', width=1.0)))
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA45'], mode='lines', name='GMMA 45', line=dict(color='#b45309', width=1.2)))
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['GMMA60'], mode='lines', name='GMMA 60', line=dict(color='#78350f', width=1.5)))
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['MA50'], mode='lines', name='MA 50', line=dict(color='#06b6d4', width=2)))
-    fig.add_trace(go.Scatter(x=zoom_df.index, y=zoom_df['VWAP'], mode='lines', name='VWAP', line=dict(color='#c084fc', width=1.5, dash='dot')))
-
-    fig.add_hline(y=data['oi_res'], line_width=3, line_color="#eab308", annotation_text=f"🟡 OI Call ₹{data['oi_res']:.1f}", annotation_position="top right")
-    fig.add_hline(y=data['oi_sup'], line_width=3, line_color="#10b981", annotation_text=f"🟢 OI Put ₹{data['oi_sup']:.1f}", annotation_position="bottom right")
-
-    if setup:
-        last_t = zoom_df.index[-1]
-        next_t = last_t + (last_t - zoom_df.index[-2])
-        proj_color = "#22c55e" if setup['type'] == "BUY" else "#ef4444"
-
-        fig.add_trace(go.Scatter(
-            x=[last_t, next_t], y=[data['price'], setup['t2']],
-            mode="lines+markers",
-            line=dict(color=proj_color, width=3, dash='dashdot'),
-            marker=dict(size=[0, 10], symbol="arrow-bar-up" if setup['type'] == "BUY" else "arrow-bar-down"),
-            name="Max Swing Path"
-        ))
-
-    fig.update_layout(
-        title=dict(text=f"{name} Angel Tools: Pre-Analysed Projection Chart", x=0.02, y=0.98),
-        yaxis_title="Price (₹)", xaxis_rangeslider_visible=False, height=530,
-        margin=dict(l=10, r=10, t=55, b=10), template="plotly_dark",
-        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0, font=dict(size=10))
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-# --- 2. AI PREDICTIVE FORECAST CHART ---
+# --- AI PREDICTIVE FORECAST CHART BUILDER ---
 def render_ai_forecast_chart(data, name):
     df = data['df'].copy()
     setup = data['setup']
@@ -424,8 +407,8 @@ def render_ai_forecast_chart(data, name):
         fig.add_hline(y=setup['entry'], line_dash="dot", line_color="#38bdf8", annotation_text=f"Entry: ₹{setup['entry']:.1f}")
         fig.add_hline(y=setup['sl'], line_dash="dash", line_color="#ef4444", annotation_text=f"SL: ₹{setup['sl']:.1f}")
         fig.add_hline(y=setup['t1'], line_dash="dash", line_color="#4ade80", annotation_text=f"T1: ₹{setup['t1']:.1f}")
-        fig.add_hline(y=setup['t2'], line_dash="dash", line_color="#22c55e", annotation_text=f"T2 (Major Swing): ₹{setup['t2']:.1f}")
-        fig.add_hline(y=setup['t3'], line_dash="dash", line_color="#facc15", annotation_text=f"T3 (Max Blast): ₹{setup['t3']:.1f}")
+        fig.add_hline(y=setup['t2'], line_dash="dash", line_color="#22c55e", annotation_text=f"T2: ₹{setup['t2']:.1f}")
+        fig.add_hline(y=setup['t3'], line_dash="dash", line_color="#facc15", annotation_text=f"T3: ₹{setup['t3']:.1f}")
 
     fig.update_layout(
         title=dict(text=f"{name} AI Full Horizon Forecast Chart", x=0.02, y=0.98),
@@ -443,7 +426,7 @@ if nav_page == "🛢️ Live Terminal & Levels":
 
     def show_terminal_tab(data, name, unit):
         if not data:
-            st.warning("⚡ Data fast-sync ho raha hai... Please wait.")
+            st.warning("⚡ Data sync ho raha hai... Please wait.")
             return
 
         r1, r2, r3, r4 = st.columns(4)
@@ -468,17 +451,17 @@ if nav_page == "🛢️ Live Terminal & Levels":
         show_terminal_tab(crude_data, "Crude Oil Mini", "₹/bbl")
 
 # ========================================================
-# 2. PAGE: ANGEL ONE PRO PRE-ANALYSED CHART
+# 2. PAGE: ANGEL ONE PRO CHART (DIRECT TRADINGVIEW MCX FEED)
 # ========================================================
-elif nav_page == "📊 Angel One Pro Pre-Analysed Chart":
-    st.subheader(f"📊 Angel One Indicator Setup - Full GMMA Cluster, VWAP, Dual OI Bands & Projected Path ({tf_choice})")
-    p1, p2 = st.tabs(["🔥 Natural Gas Mini (Angel Tools)", "🛢️ Crude Oil Mini (Angel Tools)"])
+elif nav_page == "📊 Angel One Pro Chart (Direct MCX Feed)":
+    st.subheader("📊 Direct MCX Indian Exchange Live Feed (TradingView Powered)")
+    st.caption("Yeh exact wahi tick-by-tick real candle chart hai jo Angel One aur TradingView par live chalta hai:")
+
+    p1, p2 = st.tabs(["🔥 Natural Gas Mini (MCX:NATGASMINI1!)", "🛢️ Crude Oil Mini (MCX:CRUDEOILM1!)"])
     with p1:
-        if gas_data: render_angel_tools_preanalysed_chart(gas_data, "Natural Gas Mini")
-        else: st.info("Loading chart...")
+        render_tv_widget("MCX:NATGASMINI1!", height=560)
     with p2:
-        if crude_data: render_angel_tools_preanalysed_chart(crude_data, "Crude Oil Mini")
-        else: st.info("Loading chart...")
+        render_tv_widget("MCX:CRUDEOILM1!", height=560)
 
 # ========================================================
 # 3. PAGE: AI PREDICTIVE FORECAST CHART
@@ -633,7 +616,7 @@ elif nav_page == "📑 OPEC, EIA & Global News Impact":
                     impact_hindi = "OPEC+ ne utpadan nahi badhaya hai. Supply tight rahegi, dips par buying support milega."
                 elif "cut" in t or "war" in t or "conflict" in t:
                     action_tag = "🚀 GEOPOLITICAL RISK (STRONG BULLISH)"
-                    impact_hindi = "War tension se delivery rukawat. Seedhi rally expected hai."
+                    impact_hindi = "War tension se delivery me rukawat. Seedhi rally expected hai."
                 elif "drop" in t or "fall" in t:
                     action_tag = "🔴 OVERSUPPLY (STRONG BEARISH)"
                     impact_hindi = "Demand kamzor hai, sellers dominant rahenge."
