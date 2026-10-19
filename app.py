@@ -276,7 +276,6 @@ def fetch_angel_market_bundle(smart_api, primary_sym: str, fallback_sym: str, an
                 if quote_meta["ltp"] is None or quote_meta["ltp"] <= 0:
                     quote_meta["ltp"] = float(df["Close"].iloc[-1])
                 else:
-                    # Sync live tick with current forming candle
                     df.loc[df.index[-1], "Close"] = quote_meta["ltp"]
                     if quote_meta["ltp"] > df.loc[df.index[-1], "High"]:
                         df.loc[df.index[-1], "High"] = quote_meta["ltp"]
@@ -311,15 +310,11 @@ def fetch_global_and_fallback_candles(yf_ticker: str, target_ltp: float = None, 
         global_prev = float(df["Close"].iloc[-2]) if len(df) > 1 else global_last
         global_chg_pct = round(((global_last - global_prev) / global_prev) * 100, 2) if global_prev else 0.0
 
-        # Scale to MCX price if needed
         if target_ltp and target_ltp > 0:
             scale = target_ltp / global_last
             for c in ["Open", "High", "Low", "Close"]:
                 df[c] = (df[c] * scale).round(2)
-        elif yf_ticker == "NG=F":
-            for c in ["Open", "High", "Low", "Close"]:
-                df[c] = (df[c] * 86.5).round(2)
-        elif yf_ticker == "CL=F":
+        elif yf_ticker in ["NG=F", "CL=F"]:
             for c in ["Open", "High", "Low", "Close"]:
                 df[c] = (df[c] * 86.5).round(2)
 
@@ -373,7 +368,7 @@ def compute_supertrend(df: pd.DataFrame, period: int = 10, multiplier: float = 3
         st_line[i] = f_low[i] if st_dir[i] == 1 else f_up[i]
 
     df["Supertrend"] = st_line
-    df["ST_Dir"] = st_dir  # 1 = Bullish, -1 = Bearish
+    df["ST_Dir"] = st_dir
     return df
 
 
@@ -384,7 +379,7 @@ def compute_pivots_and_cpr(df: pd.DataFrame):
     if len(unique_dates) >= 2:
         prev_day_df = df[df["date"] == unique_dates[-2]]
     else:
-        prev_day_df = df.iloc[:max(10, len(df)//2)]
+        prev_day_df = df.iloc[:max(10, len(df) // 2)]
 
     h = float(prev_day_df["High"].max())
     l = float(prev_day_df["Low"].min())
@@ -435,7 +430,7 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
     hc = (df["High"] - df["Close"].shift()).abs()
     lc = (df["Low"] - df["Close"].shift()).abs()
     tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
-    df["ATR"] = tr.ewm(alpha=1/14, adjust=False).mean().bfill()
+    df["ATR"] = tr.ewm(alpha=1 / 14, adjust=False).mean().bfill()
 
     # 4. Supertrend (10, 3.0)
     df = compute_supertrend(df, period=10, multiplier=3.0)
@@ -444,8 +439,8 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
     delta = df["Close"].diff()
     gain = delta.where(delta > 0, 0.0)
     loss = -delta.where(delta < 0, 0.0)
-    avg_g = gain.ewm(alpha=1/14, min_periods=14, adjust=False).mean()
-    avg_l = loss.ewm(alpha=1/14, min_periods=14, adjust=False).mean()
+    avg_g = gain.ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
+    avg_l = loss.ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
     rs = avg_g / avg_l.replace(0, np.nan)
     df["RSI"] = (100.0 - (100.0 / (1.0 + rs))).fillna(50.0)
 
@@ -461,11 +456,11 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
     dn = -df["Low"].diff()
     pdm = np.where((up > dn) & (up > 0), up, 0.0)
     mdm = np.where((dn > up) & (dn > 0), dn, 0.0)
-    tr_s = tr.ewm(alpha=1/14, adjust=False).mean().replace(0, np.nan)
-    pdi = 100 * (pd.Series(pdm, index=df.index).ewm(alpha=1/14, adjust=False).mean() / tr_s)
-    mdi = 100 * (pd.Series(mdm, index=df.index).ewm(alpha=1/14, adjust=False).mean() / tr_s)
+    tr_s = tr.ewm(alpha=1 / 14, adjust=False).mean().replace(0, np.nan)
+    pdi = 100 * (pd.Series(pdm, index=df.index).ewm(alpha=1 / 14, adjust=False).mean() / tr_s)
+    mdi = 100 * (pd.Series(mdm, index=df.index).ewm(alpha=1 / 14, adjust=False).mean() / tr_s)
     dx = 100 * ((pdi - mdi).abs() / (pdi + mdi).replace(0, np.nan))
-    df["ADX"] = dx.ewm(alpha=1/14, adjust=False).mean().fillna(15.0)
+    df["ADX"] = dx.ewm(alpha=1 / 14, adjust=False).mean().fillna(15.0)
 
     # 8. Structure Breakout (3-Candle High/Low) & Volume Activity
     df["Prev3_High"] = df["High"].shift(1).rolling(3).max()
@@ -473,12 +468,10 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
     df["Vol_SMA20"] = df["vol_clean"].rolling(20, min_periods=5).mean().bfill()
     df["Vol_Ratio"] = (df["vol_clean"] / df["Vol_SMA20"]).round(2)
 
-    # Thresholds based on mode
     adx_min = 20.0 if "Strict" in sensitivity_mode else 17.5
     rsi_buy_min = 56.0 if "Strict" in sensitivity_mode else 54.0
     rsi_sell_max = 44.0 if "Strict" in sensitivity_mode else 46.0
 
-    # Raw alignment per candle
     bull_aligned = (
         (df["ST_Dir"] == 1) &
         (df["EMA9"] > df["EMA21"]) &
@@ -499,7 +492,7 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
         (df["Close"] < df["Prev3_Low"])
     )
 
-    # EVENT-BASED TRIGGER: Only fire on the FIRST breakout candle (prevent continuous repeat signals)
+    # EVENT-BASED TRIGGER: Only fire on the FIRST breakout candle
     df["Trigger"] = "NONE"
     prev_bull = bull_aligned.shift(1, fill_value=False)
     prev_bear = bear_aligned.shift(1, fill_value=False)
@@ -507,7 +500,6 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
     df.loc[bull_aligned & (~prev_bull), "Trigger"] = "BUY"
     df.loc[bear_aligned & (~prev_bear), "Trigger"] = "SELL"
 
-    # Build Intraday Signal Log & Track Active/Fresh Setup
     signal_log = []
     for idx, row in df[df["Trigger"].isin(["BUY", "SELL"])].iterrows():
         sig_type = row["Trigger"]
@@ -524,7 +516,6 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
             t1_p = round(trig_price - (risk_pts * 1.8), 2)
             t2_p = round(trig_price - (risk_pts * 2.8), 2)
 
-        # Evaluate outcome on subsequent candles
         future_slice = df.iloc[idx + 1:]
         status_label = "ACTIVE NOW"
         if not future_slice.empty:
@@ -561,9 +552,7 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
             "risk_pts": risk_pts
         })
 
-    # Determine Current Actionable Status (STRICT FRESHNESS FILTER)
     last = df.iloc[-1]
-    now_ist = datetime.now(IST)
     current_ltp = round(float(last["Close"]), 2)
     current_atr = max(float(last["ATR"]), current_ltp * 0.0035)
 
@@ -573,10 +562,6 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
         candles_since_trigger = (len(df) - 1) - latest_sig["idx"]
         price_drift = abs(current_ltp - latest_sig["Trigger Price"])
 
-        # A setup is ONLY shown as active if:
-        # 1. It triggered on the current candle or immediate prior candle (candles_since_trigger <= 1)
-        # 2. Its status is still "ACTIVE NOW" (neither SL nor Target already hit)
-        # 3. Price hasn't drifted more than 0.85 * ATR away from trigger price (no chasing late trades!)
         if (
             candles_since_trigger <= 1
             and latest_sig["Status"] == "ACTIVE NOW"
@@ -584,15 +569,13 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
         ):
             active_setup = latest_sig
 
-    # Build 6-Point Diagnostic Checklist for Current Candle
+    # 6-Point Diagnostic Checklist
     checklist = []
-    # 1. Supertrend
     if last["ST_Dir"] == 1:
         checklist.append(("PASS", f"Supertrend (10,3): Bullish Support at ₹{last['Supertrend']:.2f}"))
     else:
         checklist.append(("PASS", f"Supertrend (10,3): Bearish Resistance at ₹{last['Supertrend']:.2f}"))
 
-    # 2. EMA + VWAP Alignment
     if last["EMA9"] > last["EMA21"] and last["Close"] > last["VWAP"]:
         checklist.append(("PASS", f"EMA 9/21 & VWAP: Bullish Alignment (Above VWAP ₹{last['VWAP']:.2f})"))
     elif last["EMA9"] < last["EMA21"] and last["Close"] < last["VWAP"]:
@@ -600,7 +583,6 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
     else:
         checklist.append(("WAIT", f"EMA & VWAP Conflict: Price mixed between EMA21 (₹{last['EMA21']:.2f}) & VWAP (₹{last['VWAP']:.2f})"))
 
-    # 3. RSI Momentum
     r_val = float(last["RSI"])
     if rsi_buy_min <= r_val <= 73.0:
         checklist.append(("PASS", f"RSI (14) Momentum: Strong Bullish Zone ({r_val:.1f})"))
@@ -609,20 +591,17 @@ def analyze_market_strictly(df: pd.DataFrame, commodity_name: str, sensitivity_m
     else:
         checklist.append(("WAIT", f"RSI (14) Neutral/ChopZone: {r_val:.1f} (Needs >{rsi_buy_min:.0f} for Buy or <{rsi_sell_max:.0f} for Sell)"))
 
-    # 4. MACD Confirmation
     if last["MACD"] > last["MACD_Signal"]:
         checklist.append(("PASS", f"MACD Histogram: Positive Momentum (+{last['MACD_Hist']:.2f})"))
     else:
         checklist.append(("PASS", f"MACD Histogram: Negative Momentum ({last['MACD_Hist']:.2f})"))
 
-    # 5. ADX Trend Strength
     adx_v = float(last["ADX"])
     if adx_v >= adx_min:
         checklist.append(("PASS", f"ADX Trend Strength: {adx_v:.1f} (Strong Trending Market)"))
     else:
         checklist.append(("WAIT", f"ADX Trend Strength: {adx_v:.1f} < {adx_min:.0f} (Sideways / Low Momentum Market)"))
 
-    # 6. Breakout Confirmation
     if last["Close"] > last["Prev3_High"]:
         checklist.append(("PASS", f"Breakout Confirmed: Crossed 3-Candle High (₹{last['Prev3_High']:.2f})"))
     elif last["Close"] < last["Prev3_Low"]:
@@ -698,7 +677,6 @@ def get_option_and_lot_recommendation(commodity_name: str, ltp: float, active_se
 # ==============================================================================
 def render_institutional_chart(analysis: dict, title: str):
     df = analysis["df"].tail(75).copy()
-    piv = analysis["pivots"]
 
     fig = make_subplots(
         rows=2, cols=1,
@@ -772,12 +750,15 @@ def render_institutional_chart(analysis: dict, title: str):
     # 4. Plot Active Entry, SL & Target Lines if a Confirmed Trade is Live
     act = analysis["active_setup"]
     if act:
-        fig.add_hline(y=act["Trigger Price"], line_dash="solid", line_color="#38bdf8",
-                      annotation_text=f"Entry ₹{act['Trigger Price']}", row=1, col=1)
-        fig.add_hline(y=act["Stop Loss"], line_dash="dot", line_color="#ef4444",
-                      annotation_text=f"SL ₹{act['Stop Loss']}", row=1, col=1)
-        fig.add_hline(y=act["Target 1"], line_dash="dot", line_color="#10b981",
-                      annotation_text=f"T1 ₹{act['Target 1']}", row=1, col=1)
+        trig_val = act["Trigger Price"]
+        sl_val = act["Stop Loss"]
+        t1_val = act["Target 1"]
+        fig.add_hline(y=trig_val, line_dash="solid", line_color="#38bdf8",
+                      annotation_text=f"Entry ₹{trig_val}", row=1, col=1)
+        fig.add_hline(y=sl_val, line_dash="dot", line_color="#ef4444",
+                      annotation_text=f"SL ₹{sl_val}", row=1, col=1)
+        fig.add_hline(y=t1_val, line_dash="dot", line_color="#10b981",
+                      annotation_text=f"T1 ₹{t1_val}", row=1, col=1)
 
     # 5. RSI Subplot
     fig.add_trace(go.Scatter(
@@ -893,7 +874,6 @@ def load_complete_commodity(comm_name: str):
             smart_api, spec["mini_symbol"], spec["mega_symbol"], angel_tf
         )
 
-    # Fetch Global NYMEX benchmark & fallback candles in one go
     fallback_df, global_meta = fetch_global_and_fallback_candles(
         spec["yf_ticker"], target_ltp=quote_meta.get("ltp"), yf_tf=yf_tf
     )
@@ -934,6 +914,7 @@ def render_commodity_dashboard(bundle: dict):
 
     act = an["active_setup"]
     sig_log = an["signal_log"]
+    live_ltp = an["ltp"]
 
     # ------------------------------------------------------------------
     # A. STRICT SETUP BANNER (ONLY SHOWS TRADE WHEN FRESH & CONFIRMED)
@@ -942,9 +923,13 @@ def render_commodity_dashboard(bundle: dict):
         last_sig_text = "Aaj ke session me abhi tak koi high-probability breakout trigger nahi hua hai."
         if sig_log:
             ls = sig_log[-1]
+            ls_sig = ls["Signal"]
+            ls_time = ls["Time (IST)"]
+            ls_price = ls["Trigger Price"]
+            ls_status = ls["Status"]
             last_sig_text = (
-                f"📌 <b>Last Triggered Setup:</b> {ls['Signal']} at <b>{ls['Time (IST)']}</b> "
-                f"(Entry ₹{ls['Trigger Price']}) — Status: <b>{ls['Status']}</b>"
+                f"📌 <b>Last Triggered Setup:</b> {ls_sig} at <b>{ls_time}</b> "
+                f"(Entry ₹{ls_price}) — Status: <b>{ls_status}</b>"
             )
 
         st.markdown(f"""
@@ -959,30 +944,42 @@ def render_commodity_dashboard(bundle: dict):
 
     elif act["Signal"] == "BUY":
         mins_ago = max(0, int((now_ist - act["timestamp_dt"]).total_seconds() // 60))
+        setup_time_ist = act["Time (IST)"]
+        trig_price = act["Trigger Price"]
+        sl_price = act["Stop Loss"]
+        t1_price = act["Target 1"]
+        t2_price = act["Target 2"]
+
         st.markdown(f"""
         <div class="banner-buy">
             <h3 style="margin:0; color:#34d399;">🟢 CONFIRMED BUY SETUP ACTIVE — {name.upper()}</h3>
             <p style="margin:8px 0 0 0; font-size:1.0rem;">
-                ⏰ <b>Exact Setup Candle Time:</b> <span style="background:#065f46; padding:2px 8px; border-radius:4px;">{act['Time (IST)} IST ({mins_ago} mins ago)</span><br>
-                🎯 <b>Trigger Entry:</b> ₹{act['Trigger Price']} (Live: ₹{an['ltp']}) &nbsp;|&nbsp;
-                🛑 <b>Stop Loss:</b> ₹{act['Stop Loss']} &nbsp;|&nbsp;
-                ✅ <b>Target 1:</b> ₹{act['Target 1']} &nbsp;|&nbsp;
-                🚀 <b>Target 2:</b> ₹{act['Target 2']}
+                ⏰ <b>Exact Setup Candle Time:</b> <span style="background:#065f46; padding:2px 8px; border-radius:4px;">{setup_time_ist} IST ({mins_ago} mins ago)</span><br>
+                🎯 <b>Trigger Entry:</b> ₹{trig_price} (Live: ₹{live_ltp}) &nbsp;|&nbsp;
+                🛑 <b>Stop Loss:</b> ₹{sl_price} &nbsp;|&nbsp;
+                ✅ <b>Target 1:</b> ₹{t1_price} &nbsp;|&nbsp;
+                🚀 <b>Target 2:</b> ₹{t2_price}
             </p>
         </div>
         """, unsafe_allow_html=True)
 
     elif act["Signal"] == "SELL":
         mins_ago = max(0, int((now_ist - act["timestamp_dt"]).total_seconds() // 60))
+        setup_time_ist = act["Time (IST)"]
+        trig_price = act["Trigger Price"]
+        sl_price = act["Stop Loss"]
+        t1_price = act["Target 1"]
+        t2_price = act["Target 2"]
+
         st.markdown(f"""
         <div class="banner-sell">
             <h3 style="margin:0; color:#f87171;">🔴 CONFIRMED SELL SETUP ACTIVE — {name.upper()}</h3>
             <p style="margin:8px 0 0 0; font-size:1.0rem;">
-                ⏰ <b>Exact Setup Candle Time:</b> <span style="background:#991b1b; padding:2px 8px; border-radius:4px;">{act['Time (IST)']} IST ({mins_ago} mins ago)</span><br>
-                🎯 <b>Trigger Entry:</b> ₹{act['Trigger Price']} (Live: ₹{an['ltp']}) &nbsp;|&nbsp;
-                🛑 <b>Stop Loss:</b> ₹{act['Stop Loss']} &nbsp;|&nbsp;
-                ✅ <b>Target 1:</b> ₹{act['Target 1']} &nbsp;|&nbsp;
-                🚀 <b>Target 2:</b> ₹{act['Target 2']}
+                ⏰ <b>Exact Setup Candle Time:</b> <span style="background:#991b1b; padding:2px 8px; border-radius:4px;">{setup_time_ist} IST ({mins_ago} mins ago)</span><br>
+                🎯 <b>Trigger Entry:</b> ₹{trig_price} (Live: ₹{live_ltp}) &nbsp;|&nbsp;
+                🛑 <b>Stop Loss:</b> ₹{sl_price} &nbsp;|&nbsp;
+                ✅ <b>Target 1:</b> ₹{t1_price} &nbsp;|&nbsp;
+                🚀 <b>Target 2:</b> ₹{t2_price}
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -1035,32 +1032,43 @@ def render_commodity_dashboard(bundle: dict):
         piv = an["pivots"]
         opt_rec = get_option_and_lot_recommendation(name, an["ltp"], act, risk_per_trade_inr)
 
+        r2_v, r1_v = piv["R2"], piv["R1"]
+        tc_v, p_v, bc_v = piv["TC"], piv["P"], piv["BC"]
+        s1_v, s2_v = piv["S1"], piv["S2"]
+
         p_col1, p_col2 = st.columns(2)
         with p_col1:
             st.markdown("**📊 Intraday Floor Pivots & CPR Levels**")
             st.markdown(f"""
             <div class="level-box">
-                🔴 <b>Resistance 2 (R2):</b> ₹{piv['R2']} &nbsp;|&nbsp; <b>Resistance 1 (R1):</b> ₹{piv['R1']}<br>
-                🟣 <b>CPR Zone:</b> TC ₹{piv['TC']} — <b>Pivot ₹{piv['P']}</b> — BC ₹{piv['BC']}<br>
-                🟢 <b>Support 1 (S1):</b> ₹{piv['S1']} &nbsp;|&nbsp; <b>Support 2 (S2):</b> ₹{piv['S2']}
+                🔴 <b>Resistance 2 (R2):</b> ₹{r2_v} &nbsp;|&nbsp; <b>Resistance 1 (R1):</b> ₹{r1_v}<br>
+                🟣 <b>CPR Zone:</b> TC ₹{tc_v} — <b>Pivot ₹{p_v}</b> — BC ₹{bc_v}<br>
+                🟢 <b>Support 1 (S1):</b> ₹{s1_v} &nbsp;|&nbsp; <b>Support 2 (S2):</b> ₹{s2_v}
             </div>
             """, unsafe_allow_html=True)
 
         with p_col2:
             st.markdown("**⚡ Option Strike & Position Sizing**")
             if opt_rec["status"] == "WAIT":
+                opt_msg = opt_rec["message"]
+                opt_atm = opt_rec["atm"]
                 st.markdown(f"""
                 <div class="level-box">
-                    🚫 <b>Option Action:</b> {opt_rec['message']}<br>
-                    📍 <b>Nearest ATM Strike:</b> {opt_rec['atm']} CE / {opt_rec['atm']} PE (Watch Only)
+                    🚫 <b>Option Action:</b> {opt_msg}<br>
+                    📍 <b>Nearest ATM Strike:</b> {opt_atm} CE / {opt_atm} PE (Watch Only)
                 </div>
                 """, unsafe_allow_html=True)
             else:
+                opt_type = opt_rec["opt_type"]
+                atm_pick = opt_rec["atm_pick"]
+                itm_pick = opt_rec["itm_pick"]
+                rec_lots = opt_rec["rec_mini_lots"]
+                risk_lot = opt_rec["risk_per_mini_lot"]
                 st.markdown(f"""
                 <div class="level-box">
-                    ✅ <b>Direction:</b> {opt_rec['opt_type']}<br>
-                    🎯 <b>Best Strikes:</b> <b>{opt_rec['atm_pick']}</b> or <b>{opt_rec['itm_pick']}</b><br>
-                    📦 <b>Recommended Mini Lots:</b> {opt_rec['rec_mini_lots']} Lot(s) (Risk ~₹{opt_rec['risk_per_mini_lot']}/lot)
+                    ✅ <b>Direction:</b> {opt_type}<br>
+                    🎯 <b>Best Strikes:</b> <b>{atm_pick}</b> or <b>{itm_pick}</b><br>
+                    📦 <b>Recommended Mini Lots:</b> {rec_lots} Lot(s) (Risk ~₹{risk_lot}/lot)
                 </div>
                 """, unsafe_allow_html=True)
 
